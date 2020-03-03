@@ -1,0 +1,30 @@
+<!doctype html>
+
+<html>
+  <head>
+    <title>UniformBlocksTest</title>
+  </head>
+  <body>
+    <canvas id='output'></canvas>
+    <script type="module">
+      import { UniformBlockBuilder } from './js/uniform-blocks.js';
+
+      let TestBlock = UniformBlockBuilder.defineBlock('TestBlock', [
+        { mat4: 'projectionMatrix' },
+        { mat4: 'view_matrix' },
+        { vec3: 'camera2Position' },
+        { float: 'view-id[2]' },
+        { mat4: 'someMat[03]' },
+        // Bad values
+        //{ frog: 'ribbit' },
+        //{ vec4: '[5]' },
+        //{ int: 'blarg[a]' },
+        //{ int: 'blerg[]' },
+        //{ int: '1foo[1]' }
+      ]);
+
+      let block = new TestBlock();
+
+    </script>
+  </body>
+</html>
