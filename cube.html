@@ -15,26 +15,13 @@
         margin: 0;
         background-color: #000066;
       }
-
-      canvas {
-        position: absolute;
-        height: 100%;
-        width: 100%;
-        left: 0;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        margin: 0;
-      }
     </style>
   </head>
   <body>
-    <canvas id='output'></canvas>
+    <canvas></canvas>
+    <button>Download Screenshot</button>
     <script type="module">
       import {mat4, vec3} from './js/third-party/gl-matrix/src/gl-matrix.js';
-
-      const outputCanvas = document.getElementById('output');
-      const context = outputCanvas.getContext('gpupresent');
 
       const depthFormat = "depth24plus";
       const sampleCount = 4;
@@ -136,6 +123,8 @@
         ])
       };
 
+      let canvas;
+      let context;
       let adapter;
       let device;
       let swapChainFormat;
@@ -152,11 +141,21 @@
       let projectionMatrix = mat4.create();
       let modelViewProjectionMatrix = mat4.create();
 
-      async function initWebGPU(canvas) {
+      async function initWebGPU() {
+        canvas = document.querySelector('canvas');
+
         adapter = await navigator.gpu.requestAdapter();
         device = await adapter.requestDevice();
+        // Resize after getting the device to avoid Chrome bug.
+        canvas.width = canvas.height = 300;
+
+        context = canvas.getContext('gpupresent');
         swapChainFormat = context.getSwapChainPreferredFormat(adapter);
-        swapChain = context.configureSwapChain({ device, format: swapChainFormat });
+        swapChain = context.configureSwapChain({
+          device,
+          format: swapChainFormat,
+          usage: GPUTextureUsage.OUTPUT_ATTACHMENT | GPUTextureUsage.COPY_SRC
+        });
 
         vertexBuffer = device.createBuffer({
           size: Cube.vertexArray.byteLength,
@@ -231,9 +230,6 @@
         });
 
         function onResize() {
-          canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-          canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-
           colorTexture = device.createTexture({
             size: {
               width: canvas.width,
@@ -267,6 +263,10 @@
         window.requestAnimationFrame(onFrame);
       }
 
+      function takeScreenshot(commandEncoder, swapTexture) {
+
+      }
+
       function getTransformationMatrix() {
         mat4.identity(viewMatrix);
         mat4.translate(viewMatrix, viewMatrix, vec3.fromValues(0, 0, -5));
@@ -278,6 +278,31 @@
         return modelViewProjectionMatrix;
       }
 
+      async function imageBufferToPng(buffer, width, height) {
+        await buffer.mapAsync(GPUMapMode.READ);
+        const bufferArray = buffer.getMappedRange();
+        const imageData = new ImageData(new Uint8ClampedArray(bufferArray), width, height);
+
+        // Create a new canvas with the image data
+        const canvas2D = document.createElement('canvas');
+        canvas2D.width = width;
+        canvas2D.height = height;
+        const ctx = canvas2D.getContext('2d');
+        ctx.putImageData(imageData, 0, 0);
+        // Useful for debugging
+        // document.body.appendChild(canvas2D);
+
+        // Create a download link
+        const a = document.createElement('a');
+        a.href = canvas2D.toDataURL();
+        a.download = 'screenshot.png';
+        a.innerText = 'Download';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      let screenshot = false;
       function onFrame() {
         window.requestAnimationFrame(onFrame);
 
@@ -285,7 +310,8 @@
 
         const commandEncoder = device.createCommandEncoder({});
 
-        renderPassDescriptor.colorAttachments[0].resolveTarget = swapChain.getCurrentTexture().createView();
+        const swapTexture = swapChain.getCurrentTexture();
+        renderPassDescriptor.colorAttachments[0].resolveTarget = swapTexture.createView();
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
 
         passEncoder.setPipeline(pipeline);
@@ -294,10 +320,35 @@
         passEncoder.draw(Cube.vertexCount, 1, 0, 0);
         passEncoder.endPass();
 
+        let screenshotBuffer = null;
+        let bytesPerRow;
+        if (screenshot) {
+          screenshot = false;
+
+          bytesPerRow = Math.ceil((canvas.width * 4)/256) * 256;
+          const alignedSize = bytesPerRow * canvas.height;
+          screenshotBuffer = device.createBuffer({
+            size: alignedSize,
+            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+          });
+
+          commandEncoder.copyTextureToBuffer(
+            { texture: swapTexture },
+            { buffer: screenshotBuffer, bytesPerRow, rowsPerImage: canvas.height },
+            { width: canvas.width, height: canvas.height });
+        }
+
         device.defaultQueue.submit([commandEncoder.finish()]);
+
+        if (screenshotBuffer) {
+          imageBufferToPng(screenshotBuffer, bytesPerRow / 4, canvas.height);
+        }
       }
 
-      initWebGPU(outputCanvas);
+      initWebGPU();
+
+      const button = document.querySelector('button');
+      button.addEventListener('click', () => { screenshot = true;});
     </script>
   </body>
 </html>
