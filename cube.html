@@ -263,10 +263,6 @@
         window.requestAnimationFrame(onFrame);
       }
 
-      function takeScreenshot(commandEncoder, swapTexture) {
-
-      }
-
       function getTransformationMatrix() {
         mat4.identity(viewMatrix);
         mat4.translate(viewMatrix, viewMatrix, vec3.fromValues(0, 0, -5));
@@ -278,10 +274,26 @@
         return modelViewProjectionMatrix;
       }
 
-      async function imageBufferToPng(buffer, width, height) {
+      async function downloadTextureAsPng(device, texture, width, height) {
+        const bytesPerRow = Math.ceil((width * 4)/256) * 256;
+        const alignedSize = bytesPerRow * height;
+        const buffer = device.createBuffer({
+          size: alignedSize,
+          usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+        });
+
+        const commandEncoder = device.createCommandEncoder({});
+        commandEncoder.copyTextureToBuffer(
+          { texture },
+          { buffer, bytesPerRow, rowsPerImage: height },
+          { width, height });
+        device.defaultQueue.submit([commandEncoder.finish()]);
+
+        const alignedWidth = bytesPerRow / 4;
+
         await buffer.mapAsync(GPUMapMode.READ);
         const bufferArray = buffer.getMappedRange();
-        const imageData = new ImageData(new Uint8ClampedArray(bufferArray), width, height);
+        const imageData = new ImageData(new Uint8ClampedArray(bufferArray), alignedWidth, height);
 
         // Create a new canvas with the image data
         const canvas2D = document.createElement('canvas');
@@ -290,12 +302,16 @@
         const ctx = canvas2D.getContext('2d');
         ctx.putImageData(imageData, 0, 0);
         // Useful for debugging
-        // document.body.appendChild(canvas2D);
+        //document.body.appendChild(canvas2D);
+
+        // Note: Can't unmap until after you call putImageData!
+        buffer.unmap();
+        buffer.destroy();
 
         // Create a download link
         const a = document.createElement('a');
         a.href = canvas2D.toDataURL();
-        a.download = 'screenshot.png';
+        a.download = `screenshot_${Date.now()}.png`;
         a.innerText = 'Download';
         document.body.appendChild(a);
         a.click();
@@ -320,28 +336,11 @@
         passEncoder.draw(Cube.vertexCount, 1, 0, 0);
         passEncoder.endPass();
 
-        let screenshotBuffer = null;
-        let bytesPerRow;
-        if (screenshot) {
-          screenshot = false;
-
-          bytesPerRow = Math.ceil((canvas.width * 4)/256) * 256;
-          const alignedSize = bytesPerRow * canvas.height;
-          screenshotBuffer = device.createBuffer({
-            size: alignedSize,
-            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
-          });
-
-          commandEncoder.copyTextureToBuffer(
-            { texture: swapTexture },
-            { buffer: screenshotBuffer, bytesPerRow, rowsPerImage: canvas.height },
-            { width: canvas.width, height: canvas.height });
-        }
-
         device.defaultQueue.submit([commandEncoder.finish()]);
 
-        if (screenshotBuffer) {
-          imageBufferToPng(screenshotBuffer, bytesPerRow / 4, canvas.height);
+        if (screenshot) {
+          screenshot = false;
+          downloadTextureAsPng(device, swapTexture, canvas.width, canvas.height);
         }
       }
 
