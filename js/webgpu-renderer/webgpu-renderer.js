@@ -120,7 +120,7 @@ const LightSprite = {
     [[offset(64)]] viewMatrix : mat4x4<f32>;
     [[offset(128)]] cameraPosition : vec3<f32>;
   };
-  [[binding(0), set(0)]] var<uniform> frame : FrameUniforms;
+  [[binding(0), group(0)]] var<uniform> frame : FrameUniforms;
 
   struct Light {
     [[offset(0)]] position : vec3<f32>;
@@ -131,7 +131,7 @@ const LightSprite = {
     [[offset(0)]] lights : [[stride(32)]] array<Light, 5>;
     [[offset(160)]] lightAmbient : f32;
   };
-  [[binding(1), set(0)]] var<uniform> light : LightUniforms;
+  [[binding(1), group(0)]] var<uniform> light : LightUniforms;
 
   [[location(0)]] var<out> vPos : vec2<f32>;
   [[location(1)]] var<out> vColor : vec3<f32>;
@@ -236,7 +236,7 @@ export class WebGPURenderer extends Renderer {
       entries: [{
         binding: 0,
         visibility: GPUShaderStage.VERTEX,
-        type: 'uniform-buffer'
+        buffer: {}
       }]
     });
 
@@ -244,37 +244,37 @@ export class WebGPURenderer extends Renderer {
       entries: [{
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        type: 'uniform-buffer'
+        buffer: {}
       },
       {
         binding: 1, // defaultSampler
         visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampler'
+        sampler: {}
       },
       {
         binding: 2, // baseColorTexture
         visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
+        texture: {}
       },
       {
         binding: 3, // normalTexture
         visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
+        texture: {}
       },
       {
         binding: 4, // metallicRoughnessTexture
         visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
+        texture: {}
       },
       {
         binding: 5, // occlusionTexture
         visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
+        texture: {}
       },
       {
         binding: 6, // emissiveTexture
         visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
+        texture: {}
       }]
     });
 
@@ -282,7 +282,7 @@ export class WebGPURenderer extends Renderer {
       entries: [{
         binding: 0,
         visibility: GPUShaderStage.VERTEX,
-        type: 'uniform-buffer'
+        buffer: {}
       }]
     });
 
@@ -290,7 +290,7 @@ export class WebGPURenderer extends Renderer {
       entries: [{
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        type: 'uniform-buffer'
+        buffer: {}
       }]
     });
 
@@ -348,11 +348,11 @@ export class WebGPURenderer extends Renderer {
       entries: [{
         binding: 0,
         visibility: GPUShaderStage.VERTEX,
-        type: 'uniform-buffer'
+        buffer: {}
       }, {
         binding: 1,
         visibility: GPUShaderStage.VERTEX,
-        type: 'uniform-buffer'
+        buffer: {}
       }]
     });
 
@@ -389,12 +389,16 @@ export class WebGPURenderer extends Renderer {
         format: this.swapChainFormat,
         colorBlend: {
           srcFactor: 'src-alpha',
-          dstFactor: 'one-minus-src-alpha',
+          dstFactor: 'one',
+        },
+        alphaBlend: {
+          srcFactor: 'one',
+          dstFactor: 'one',
         }
         // TODO: Bend mode goes here
       }],
       depthStencilState: {
-        depthWriteEnabled: true,
+        depthWriteEnabled: false,
         depthCompare: 'less',
         format: DEPTH_FORMAT,
       },
@@ -826,7 +830,11 @@ export class WebGPURenderer extends Renderer {
         layout: this.pipelineLayout,
         colorStates: [{
           format: this.swapChainFormat,
-          colorBlend
+          colorBlend,
+          alphaBlend: {
+            srcFactor: 'one',
+            dstFactor: 'one',
+          }
           // TODO: Blend mode goes here
         }],
         depthStencilState: {

@@ -62,12 +62,12 @@ ${defines.USE_VERTEX_COLOR ? `
   [[offset(64)]] viewMatrix : mat4x4<f32>;
   [[offset(128)]] cameraPosition : vec3<f32>;
 };
-[[binding(0), set(${UNIFORM_BLOCKS.FrameUniforms})]] var<uniform> frame : FrameUniforms;
+[[binding(0), group(${UNIFORM_BLOCKS.FrameUniforms})]] var<uniform> frame : FrameUniforms;
 
 [[block]] struct PrimitiveUniforms {
   [[offset(0)]] modelMatrix : mat4x4<f32>;
 };
-[[binding(0), set(${UNIFORM_BLOCKS.PrimitiveUniforms})]] var<uniform> primitive : PrimitiveUniforms;
+[[binding(0), group(${UNIFORM_BLOCKS.PrimitiveUniforms})]] var<uniform> primitive : PrimitiveUniforms;
 
 ${PBR_VARYINGS(defines, 'out')}
 
@@ -147,14 +147,14 @@ ${PBR_FUNCTIONS}
   [[offset(32)]] emissiveFactor : vec3<f32>;
   [[offset(44)]] occlusionStrength : f32;
 };
-[[binding(0), set(${UNIFORM_BLOCKS.MaterialUniforms})]] var<uniform> material : MaterialUniforms;
+[[binding(0), group(${UNIFORM_BLOCKS.MaterialUniforms})]] var<uniform> material : MaterialUniforms;
 
-[[set(1), binding(1)]] var<uniform_constant> defaultSampler : sampler;
-[[set(1), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
-[[set(1), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
-[[set(1), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
-[[set(1), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
-[[set(1), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
+[[group(1), binding(1)]] var<uniform_constant> defaultSampler : sampler;
+[[group(1), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
+[[group(1), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
+[[group(1), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
+[[group(1), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
+[[group(1), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
 
 struct Light {
   [[offset(0)]] position : vec3<f32>;
@@ -165,7 +165,7 @@ struct Light {
   [[offset(0)]] lights : [[stride(32)]] array<Light, ${defines.LIGHT_COUNT}>;
   [[offset(${defines.LIGHT_COUNT * 32})]] lightAmbient : f32;
 };
-[[binding(0), set(${UNIFORM_BLOCKS.LightUniforms})]] var<uniform> light : LightUniforms;
+[[binding(0), group(${UNIFORM_BLOCKS.LightUniforms})]] var<uniform> light : LightUniforms;
 
 ${PBR_VARYINGS(defines, 'in')}
 
