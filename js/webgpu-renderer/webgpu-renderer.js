@@ -148,7 +148,7 @@ const LightSprite = {
     vColor = light.lights[instanceIndex].color;
     var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * lightSize;
 
-    # Generate a billboarded model view matrix
+    // Generate a billboarded model view matrix
     var bbModelViewMatrix : mat4x4<f32>;
     bbModelViewMatrix[3] = vec4<f32>(light.lights[instanceIndex].position, 1.0);
     bbModelViewMatrix = frame.viewMatrix * bbModelViewMatrix;
@@ -409,7 +409,7 @@ export class WebGPURenderer extends Renderer {
       size: { width, height, depth: 1 },
       sampleCount: SAMPLE_COUNT,
       format: this.swapChainFormat,
-      usage: GPUTextureUsage.OUTPUT_ATTACHMENT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.colorAttachment.attachment = msaaColorTexture.createView();
 
@@ -417,7 +417,7 @@ export class WebGPURenderer extends Renderer {
       size: { width, height, depth: 1 },
       sampleCount: SAMPLE_COUNT,
       format: DEPTH_FORMAT,
-      usage: GPUTextureUsage.OUTPUT_ATTACHMENT
+      usage: GPUTextureUsage.RENDER_ATTACHMENT
     });
     this.depthAttachment.attachment = depthTexture.createView();
   }
@@ -516,7 +516,7 @@ export class WebGPURenderer extends Renderer {
 
     const commandEncoder = this.device.createCommandEncoder({});
     commandEncoder.copyBufferToBuffer(copyBuffer, 0, gpuBuffer, 0, alignedLength);
-    this.device.defaultQueue.submit([commandEncoder.finish()]);
+    this.device.queue.submit([commandEncoder.finish()]);
   }
 
   async initImage(image) {
@@ -592,7 +592,7 @@ export class WebGPURenderer extends Renderer {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    this.device.defaultQueue.writeBuffer(materialUniformsBuffer, 0, materialUniforms);
+    this.device.queue.writeBuffer(materialUniformsBuffer, 0, materialUniforms);
 
     // FYI: This is how you'd do it without using writeBuffer
     /*const materialUniformsSrcBuffer = this.device.createBuffer({
@@ -607,7 +607,7 @@ export class WebGPURenderer extends Renderer {
 
     const commandEncoder = this.device.createCommandEncoder({});
     commandEncoder.copyBufferToBuffer(materialUniformsSrcBuffer, 0, materialUniformsBuffer, 0, materialUniforms.byteLength);
-    this.device.defaultQueue.submit([commandEncoder.finish()]);*/
+    this.device.queue.submit([commandEncoder.finish()]);*/
 
     const materialBindGroup = this.device.createBindGroup({
       layout: this.materialUniformsBindGroupLayout,
@@ -737,7 +737,7 @@ export class WebGPURenderer extends Renderer {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
 
-      this.device.defaultQueue.writeBuffer(primitiveUniformsBuffer, 0, primitive.renderData.instances[0]);
+      this.device.queue.writeBuffer(primitiveUniformsBuffer, 0, primitive.renderData.instances[0]);
 
       const primitiveBindGroup = this.device.createBindGroup({
         layout: this.primitiveUniformsBindGroupLayout,
@@ -877,10 +877,10 @@ export class WebGPURenderer extends Renderer {
 
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
-    this.device.defaultQueue.writeBuffer(this.frameUniformsBuffer, 0, this.frameUniforms);
+    this.device.queue.writeBuffer(this.frameUniformsBuffer, 0, this.frameUniforms);
 
     // Update the light unforms as well
-    this.device.defaultQueue.writeBuffer(this.lightUniformsBuffer, 0, this.lightUniforms);
+    this.device.queue.writeBuffer(this.lightUniformsBuffer, 0, this.lightUniforms);
 
     const commandEncoder = this.device.createCommandEncoder({});
 
@@ -891,7 +891,7 @@ export class WebGPURenderer extends Renderer {
     }
 
     passEncoder.endPass();
-    this.device.defaultQueue.submit([commandEncoder.finish()]);
+    this.device.queue.submit([commandEncoder.finish()]);
   }
 
   drawPipelinePrimitives(passEncoder, pipeline) {

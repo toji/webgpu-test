@@ -45,7 +45,7 @@ export class GPUTextureHelper {
 
     const mipmapFragmentSource = `
       [[binding(0), group(0)]] var<uniform_constant> imgSampler : sampler;
-      [[binding(1), group(0)]] var<uniform_constant> img : texture_sampled_2d<f32>;
+      [[binding(1), group(0)]] var<uniform_constant> img : texture_2d<f32>;
 
       [[location(0)]] var<in> vTex : vec2<f32>;
       [[location(0)]] var<out> outColor : vec4<f32>;
@@ -97,10 +97,10 @@ export class GPUTextureHelper {
       format: 'rgba8unorm',
       // TO COMPLAIN ABOUT: Kind of worrying that this style of mipmap generation implies that almost every texture
       // generated will be an output attachment. There's gotta be a performance penalty for that.
-      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED | GPUTextureUsage.OUTPUT_ATTACHMENT,
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED | GPUTextureUsage.RENDER_ATTACHMENT,
       mipLevelCount
     });
-    this.device.defaultQueue.copyImageBitmapToTexture({ imageBitmap }, { texture: srcTexture }, textureSize);
+    this.device.queue.copyImageBitmapToTexture({ imageBitmap }, { texture: srcTexture }, textureSize);
 
     const commandEncoder = this.device.createCommandEncoder({});
 
@@ -138,7 +138,7 @@ export class GPUTextureHelper {
       textureSize.width = Math.ceil(textureSize.width / 2);
       textureSize.height = Math.ceil(textureSize.height / 2);
     }
-    this.device.defaultQueue.submit([commandEncoder.finish()]);
+    this.device.queue.submit([commandEncoder.finish()]);
 
     return srcTexture;
   }
@@ -155,7 +155,7 @@ export class GPUTextureHelper {
       format: 'rgba8unorm',
       usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED,
     });
-    this.device.defaultQueue.copyImageBitmapToTexture({ imageBitmap }, { texture }, textureSize);
+    this.device.queue.copyImageBitmapToTexture({ imageBitmap }, { texture }, textureSize);
 
     return texture;
   }
@@ -186,7 +186,7 @@ export class GPUTextureHelper {
       bytesPerRow: 256,
       rowsPerImage: 0, // What is this for?
     }, { texture: texture }, imageSize);
-    this.device.defaultQueue.submit([commandEncoder.finish()]);
+    this.device.queue.submit([commandEncoder.finish()]);
 
     return texture;
   }

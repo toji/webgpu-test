@@ -35,7 +35,7 @@ export const UNIFORM_BLOCKS = {
 
 function PBR_VARYINGS(defines, dir) { return `
 [[location(0)]] var<${dir}> vWorldPos : vec3<f32>;
-[[location(1)]] var<${dir}> vView : vec3<f32>; # Vector from vertex to camera.
+[[location(1)]] var<${dir}> vView : vec3<f32>; // Vector from vertex to camera.
 [[location(2)]] var<${dir}> vTex : vec2<f32>;
 [[location(3)]] var<${dir}> vCol : vec4<f32>;
 
@@ -150,11 +150,11 @@ ${PBR_FUNCTIONS}
 [[binding(0), group(${UNIFORM_BLOCKS.MaterialUniforms})]] var<uniform> material : MaterialUniforms;
 
 [[group(1), binding(1)]] var<uniform_constant> defaultSampler : sampler;
-[[group(1), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
-[[group(1), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
-[[group(1), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
-[[group(1), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
-[[group(1), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
+[[group(1), binding(2)]] var<uniform_constant> baseColorTexture : texture_2d<f32>;
+[[group(1), binding(3)]] var<uniform_constant> normalTexture : texture_2d<f32>;
+[[group(1), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_2d<f32>;
+[[group(1), binding(5)]] var<uniform_constant> occlusionTexture : texture_2d<f32>;
+[[group(1), binding(6)]] var<uniform_constant> emissiveTexture : texture_2d<f32>;
 
 struct Light {
   [[offset(0)]] position : vec3<f32>;
@@ -210,18 +210,18 @@ ${defines.USE_NORMAL_MAP ? `
 
   var F0 : vec3<f32> = mix(dielectricSpec, albedo, vec3<f32>(metallic, metallic, metallic));
 
-  # reflectance equation
+  // reflectance equation
   var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
   for (var i : i32 = 0; i < ${defines.LIGHT_COUNT}; i = i + 1) {
-    # calculate per-light radiance
+    // calculate per-light radiance
     var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
     var H : vec3<f32> = normalize(V + L);
     var distance : f32 = length(light.lights[i].position.xyz - vWorldPos);
     var attenuation : f32 = 1.0 / (1.0 + distance * distance);
     var radiance : vec3<f32> = light.lights[i].color.rgb * attenuation;
 
-    # cook-torrance brdf
+    // cook-torrance brdf
     var NDF : f32 = DistributionGGX(N, H, roughness);
     var G : f32   = GeometrySmith(N, V, L, roughness);
     var F : vec3<f32>    = FresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -234,7 +234,7 @@ ${defines.USE_NORMAL_MAP ? `
     denominator = max(denominator, 0.001);
     var specular : vec3<f32>     = numerator / vec3<f32>(denominator, denominator, denominator);
 
-    # add to outgoing radiance Lo
+    // add to outgoing radiance Lo
     var NdotL : f32 = max(dot(N, L), 0.0);
     Lo = Lo + (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
   }
