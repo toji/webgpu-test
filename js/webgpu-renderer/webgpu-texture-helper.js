@@ -87,7 +87,6 @@ export class GPUTextureHelper {
     let textureSize = {
       width: imageBitmap.width,
       height: imageBitmap.height,
-      depth: 1,
     }
     const mipLevelCount = Math.floor(Math.log2(Math.max(imageBitmap.width, imageBitmap.height))) + 1;
 
@@ -147,7 +146,6 @@ export class GPUTextureHelper {
     const textureSize = {
       width: imageBitmap.width,
       height: imageBitmap.height,
-      depth: 1,
     };
 
     const texture = this.device.createTexture({
@@ -163,7 +161,7 @@ export class GPUTextureHelper {
   generateColorTexture(r, g, b, a) {
     const imageData = new Uint8Array([r * 255, g * 255, b * 255, a * 255]);
 
-    const imageSize = { width: 1, height: 1, depth: 1 };
+    const imageSize = { width: 1, height: 1 };
     const texture = this.device.createTexture({
       size: imageSize,
       format: 'rgba8unorm',

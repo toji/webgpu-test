@@ -406,7 +406,7 @@ export class WebGPURenderer extends Renderer {
     if (!this.device) return;
 
     const msaaColorTexture = this.device.createTexture({
-      size: { width, height, depth: 1 },
+      size: { width, height },
       sampleCount: SAMPLE_COUNT,
       format: this.swapChainFormat,
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
@@ -414,7 +414,7 @@ export class WebGPURenderer extends Renderer {
     this.colorAttachment.attachment = msaaColorTexture.createView();
 
     const depthTexture = this.device.createTexture({
-      size: { width, height, depth: 1 },
+      size: { width, height },
       sampleCount: SAMPLE_COUNT,
       format: DEPTH_FORMAT,
       usage: GPUTextureUsage.RENDER_ATTACHMENT
@@ -650,6 +650,25 @@ export class WebGPURenderer extends Renderer {
   initPrimitive(primitive) {
     const material = primitive.material;
 
+    function attributeToFormat(attrib) {
+      const count = attrib.componentCount > 1 ? `x${attrib.componentCount}` : '';
+      const intType = attrib.normalized ? 'norm' : 'int';
+      switch(attrib.componentType) {
+        case GL.BYTE:
+          return `s${intType}8${count}`;
+        case GL.UNSIGNED_BYTE:
+          return `u${intType}8${count}`;
+        case GL.SHORT:
+          return `s${intType}16${count}`;
+        case GL.UNSIGNED_SHORT:
+          return `u${intType}16${count}`;
+        case GL.UNSIGNED_INT:
+          return `u${intType}32${count}`;
+        case GL.FLOAT:
+          return `float32${count}`;
+      }
+    }
+
     const vertexBuffers = [];
     for (let [bufferView, attributes] of primitive.attributeBuffers) {
       let arrayStride = bufferView.byteStride;
@@ -657,31 +676,7 @@ export class WebGPURenderer extends Renderer {
       const attributeLayouts = [];
       for (let attribName in attributes) {
         const attribute = attributes[attribName];
-
-        const count = attribute.componentCount > 1 ? `${attribute.componentCount}` : '';
-        const norm = attribute.normalized ? 'norm' : '';
-
-        let format;
-        switch(attribute.componentType) {
-          case GL.BYTE:
-            format = `char${count}${norm}`;
-            break;
-          case GL.UNSIGNED_BYTE:
-            format = `uchar${count}${norm}`;
-            break;
-          case GL.SHORT:
-            format = `short${count}${norm}`;
-            break;
-          case GL.UNSIGNED_SHORT:
-            format = `ushort${count}${norm}`;
-            break;
-          case GL.UNSIGNED_INT:
-            format = `uint${count}`;
-            break;
-          case GL.FLOAT:
-            format = `float${count}`;
-            break;
-        }
+        const format = attributeToFormat(attribute);
 
         attributeLayouts.push({
           shaderLocation: ATTRIB_MAP[attribName],
