@@ -62,18 +62,18 @@
             // position
             shaderLocation: 0,
             offset: 0,
-            format: "float4"
+            format: "float32x4"
           }, {
             // color
             shaderLocation: 1,
             offset: 4 * 4,
-            format: "float4"
+            format: "float32x4"
           },
           {
             // UV
             shaderLocation: 2,
             offset: 4 * 8,
-            format: "float2"
+            format: "float32x2"
           }]
         },
         vertexCount: 36,
@@ -127,6 +127,7 @@
       let context;
       let adapter;
       let device;
+      let queue;
       let swapChainFormat;
       let swapChain;
       let vertexBuffer;
@@ -150,49 +151,53 @@
         canvas.width = canvas.height = 300;
 
         context = canvas.getContext('gpupresent');
-        swapChainFormat = context.getSwapChainPreferredFormat(adapter);
+        swapChainFormat = 'bgra8unorm';
+        if ('getSwapChainPreferredFormat' in context) {
+          swapChainFormat = context.getSwapChainPreferredFormat(adapter);
+        }
         swapChain = context.configureSwapChain({
           device,
           format: swapChainFormat,
           usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
         });
 
+        // Quick patch for Firefox/Chrome compat difference
+        if (!device.queue) {
+          device.queue = device.defaultQueue;
+        }
+
         vertexBuffer = device.createBuffer({
           size: Cube.vertexArray.byteLength,
           usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
         });
-        device.queue.writeBuffer(vertexBuffer, 0, Cube.vertexArray);
+        device.queue.writeBuffer(vertexBuffer, 0, Cube.vertexArray.buffer);
 
         const shaderModule = device.createShaderModule({ code: shaderSrc });
 
         pipeline = device.createRenderPipeline({
-          vertexStage: {
+          vertex: {
             module: shaderModule,
-            entryPoint: 'vertMain'
+            entryPoint: 'vertMain',
+            buffers: [Cube.layout],
           },
-          fragmentStage: {
+          fragment: {
             module: shaderModule,
-            entryPoint: 'fragMain'
+            entryPoint: 'fragMain',
+            targets: [{
+              format: swapChainFormat,
+            }],
           },
 
-          primitiveTopology: 'triangle-list',
-          vertexState: {
-            vertexBuffers: [Cube.layout],
-          },
-
-          rasterizationState: {
+          primitive: {
+            topology: 'triangle-list',
             cullMode: 'back',
           },
-
-          colorStates: [{
-            format: swapChainFormat,
-          }],
-          depthStencilState: {
+          depthStencil: {
+            format: depthFormat,
             depthWriteEnabled: true,
             depthCompare: 'less',
-            format: depthFormat,
           },
-          sampleCount,
+          multisample: { count: sampleCount, },
         });
 
         renderPassDescriptor = {
@@ -234,7 +239,6 @@
             size: {
               width: canvas.width,
               height: canvas.height,
-              depth: 1,
             },
             sampleCount,
             format: swapChainFormat,
@@ -246,7 +250,6 @@
             size: {
               width: canvas.width,
               height: canvas.height,
-              depth: 1
             },
             sampleCount,
             format: depthFormat,

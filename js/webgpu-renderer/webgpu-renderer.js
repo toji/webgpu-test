@@ -92,18 +92,11 @@ function createShaderModuleDebug(device, code) {
 }
 
 class PBRShaderModule {
-  constructor(device, glslang, defines) {
+  constructor(device, defines) {
     this.id = NEXT_SHADER_ID++;
 
-    this.vertexStage = {
-      module: createShaderModuleDebug(device, WEBGPU_VERTEX_SOURCE(defines)),
-      entryPoint: 'main'
-    };
-
-    this.fragmentStage = {
-      module: createShaderModuleDebug(device, WEBGPU_FRAGMENT_SOURCE(defines)),
-      entryPoint: 'main'
-    };
+    this.vertexModule = createShaderModuleDebug(device, WEBGPU_VERTEX_SOURCE(defines));
+    this.fragmentModule = createShaderModuleDebug(device, WEBGPU_FRAGMENT_SOURCE(defines));
   }
 }
 
@@ -334,7 +327,7 @@ export class WebGPURenderer extends Renderer {
     });
 
     // TODO: Will probably need to be per-material later
-    this.textureHelper = new GPUTextureHelper(this.device, this.glslang);
+    this.textureHelper = new GPUTextureHelper(this.device);
 
     this.blackTextureView = this.textureHelper.generateColorTexture(0, 0, 0, 0).createView();
     this.whiteTextureView = this.textureHelper.generateColorTexture(1.0, 1.0, 1.0, 1.0).createView();
@@ -373,32 +366,39 @@ export class WebGPURenderer extends Renderer {
 
     this.lightSpritePipeline = this.device.createRenderPipeline({
       layout: this.device.createPipelineLayout({ bindGroupLayouts: [lightSpriteBindGroupLayout] }),
-      vertexStage: {
+      vertex: {
         module: createShaderModuleDebug(this.device, LightSprite.vertexSource),
         entryPoint: 'main'
       },
-      fragmentStage: {
+      fragment: {
         module: createShaderModuleDebug(this.device, LightSprite.fragmentSource),
-        entryPoint: 'main'
+        entryPoint: 'main',
+        targets: [{
+          format: this.swapChainFormat,
+          blend: {
+            color: {
+              srcFactor: 'src-alpha',
+              dstFactor: 'one',
+            },
+            alpha: {
+              srcFactor: 'zero',
+              dstFactor: 'one',
+            },
+          }
+        }],
       },
-      primitiveTopology: 'triangle-strip',
-      vertexState: {
-        indexFormat: 'uint32'
+      primitive: {
+        topology: 'triangle-strip',
+        stripIndexFormat: 'uint32',
       },
-      colorStates: [{
-        format: this.swapChainFormat,
-        colorBlend: {
-          srcFactor: 'src-alpha',
-          dstFactor: 'one',
-        }
-        // TODO: Bend mode goes here
-      }],
-      depthStencilState: {
+      depthStencil: {
+        format: DEPTH_FORMAT,
         depthWriteEnabled: false,
         depthCompare: 'less',
-        format: DEPTH_FORMAT,
       },
-      sampleCount: SAMPLE_COUNT,
+      multisample: {
+        count: SAMPLE_COUNT,
+      },
     });
   }
 
@@ -695,9 +695,7 @@ export class WebGPURenderer extends Renderer {
       });
     }
 
-    primitive.renderData.gpuVertexState = {
-      vertexBuffers
-    };
+    primitive.renderData.gpuBuffers = vertexBuffers;
 
     if (primitive.indices) {
       primitive.indices.gpuType = primitive.indices.type == GL.UNSIGNED_SHORT ? 'uint16' : 'uint32';
@@ -717,7 +715,7 @@ export class WebGPURenderer extends Renderer {
 
     let program = this.programs.get(key);
     if (!program) {
-      program = new PBRShaderModule(this.device, this.glslang, defines);
+      program = new PBRShaderModule(this.device, defines);
       this.programs.set(key, program);
     }
 
@@ -754,42 +752,51 @@ export class WebGPURenderer extends Renderer {
   createPipeline(primitive) {
     const material = primitive.material;
     const shaderModule = primitive.renderData.gpuShaderModule;
-    const vertexState = primitive.renderData.gpuVertexState;
+    const buffers = primitive.renderData.gpuBuffers;
 
-    let primitiveTopology;
+    let topology;
+    let stripIndexFormat = undefined;
     switch (primitive.mode) {
       case GL.TRIANGLES:
-        primitiveTopology = 'triangle-list';
+        topology = 'triangle-list';
         break;
       case GL.TRIANGLE_STRIP:
-        primitiveTopology = 'triangle-strip';
-        vertexState.indexFormat = primitive.indices.gpuType;
+        topology = 'triangle-strip';
+        stripIndexFormat = primitive.indices.gpuType;
         break;
       case GL.LINES:
-        primitiveTopology = 'line-list';
+        topology = 'line-list';
         break;
       case GL.LINE_STRIP:
-        primitiveTopology = 'line-strip';
-        vertexState.indexFormat = primitive.indices.gpuType;
+        topology = 'line-strip';
+        stripIndexFormat = primitive.indices.gpuType;
         break;
       case GL.POINTS:
-        primitiveTopology = 'point-list';
+        topology = 'point-list';
         break;
       default:
         // LINE_LOOP and TRIANGLE_FAN are straight up unsupported.
         return;
     }
     const cullMode = material.cullFace ? 'back' : 'none';
-    const colorBlend = {};
+    let blend = undefined;
     if (material.blend) {
-      colorBlend.srcFactor = 'src-alpha';
-      colorBlend.dstFactor = 'one-minus-src-alpha';
+      blend = {
+        color: {
+          srcFactor: 'src-alpha',
+          dstFactor: 'one-minus-src-alpha'
+        },
+        alpha: {
+          srcFactor: 'zero',
+          dstFactor: 'one'
+        }
+      };
     }
 
     // Generate a key that describes this pipeline's layout/state
-    let pipelineKey = `${shaderModule.id}|${primitiveTopology}|${cullMode}|${material.blend}|`;
+    let pipelineKey = `${shaderModule.id}|${topology}|${cullMode}|${material.blend}|`;
     let i = 0;
-    for (let vertexBuffer of vertexState.vertexBuffers) {
+    for (let vertexBuffer of buffers) {
       pipelineKey += `${i}:${vertexBuffer.arrayStride}`;
       for (let attribute of vertexBuffer.attributes) {
         pipelineKey += `:${attribute.shaderLocation},${attribute.offset},${attribute.format}`;
@@ -798,38 +805,42 @@ export class WebGPURenderer extends Renderer {
       i++;
     }
 
-    if (vertexState.indexFormat) {
-      pipelineKey += `${vertexState.indexFormat}`;
+    if (stripIndexFormat) {
+      pipelineKey += `${stripIndexFormat}`;
     }
 
     let pipeline = this.pipelines.get(pipelineKey);
 
     if (!pipeline) {
       pipeline = this.device.createRenderPipeline({
-        vertexStage: shaderModule.vertexStage,
-        fragmentStage: shaderModule.fragmentStage,
+        layout: this.pipelineLayout,
+        vertex: {
+          module: shaderModule.vertexModule,
+          entryPoint: 'main',
+          buffers,
+        },
+        fragment: {
+          module: shaderModule.fragmentModule,
+          entryPoint: 'main',
+          targets: [{
+            format: this.swapChainFormat,
+            blend
+          }],
+        },
 
-        primitiveTopology,
-
-        vertexState,
-
-        rasterizationState: {
+        primitve: {
+          topology,
+          stripIndexFormat,
           cullMode,
         },
-
-        // Everything below here is (currently) identical for each pipeline
-        layout: this.pipelineLayout,
-        colorStates: [{
-          format: this.swapChainFormat,
-          colorBlend
-          // TODO: Blend mode goes here
-        }],
-        depthStencilState: {
+        depthStencil: {
+          format: DEPTH_FORMAT,
           depthWriteEnabled: true,
           depthCompare: 'less',
-          format: DEPTH_FORMAT,
         },
-        sampleCount: SAMPLE_COUNT,
+        multisample: {
+          count: SAMPLE_COUNT,
+        },
       });
 
       this.pipelines.set(pipelineKey, pipeline);

@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 export class GPUTextureHelper {
-  constructor(device, glslang) {
+  constructor(device) {
     this.device = device;
 
     const mipmapVertexSource = `
@@ -60,25 +60,25 @@ export class GPUTextureHelper {
     this.mipmapSampler = device.createSampler({ minFilter: 'linear' });
 
     this.mipmapPipeline = device.createRenderPipeline({
-      vertexStage: {
+      vertex: {
         module: device.createShaderModule({
           code: mipmapVertexSource
         }),
-        entryPoint: 'main'
+        entryPoint: 'main',
       },
-      fragmentStage: {
+      fragment: {
         module: device.createShaderModule({
           code: mipmapFragmentSource
         }),
-        entryPoint: 'main'
+        entryPoint: 'main',
+        targets: [{
+          format: 'rgba8unorm',
+        }],
       },
-      primitiveTopology: 'triangle-strip',
-      vertexState: {
-        indexFormat: 'uint32'
+      primitive: {
+        topology: 'triangle-strip',
+        stripIndexFormat: 'uint32',
       },
-      colorStates: [{
-        format: 'rgba8unorm',
-      }]
     });
   }
 
