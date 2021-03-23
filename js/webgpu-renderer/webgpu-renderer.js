@@ -109,19 +109,19 @@ const LightSprite = {
   );
 
   [[block]] struct FrameUniforms {
-    [[offset(0)]] projectionMatrix : mat4x4<f32>;
-    [[offset(64)]] viewMatrix : mat4x4<f32>;
-    [[offset(128)]] cameraPosition : vec3<f32>;
+    projectionMatrix : mat4x4<f32>;
+    viewMatrix : mat4x4<f32>;
+    cameraPosition : vec3<f32>;
   };
   [[binding(0), group(0)]] var<uniform> frame : FrameUniforms;
 
   struct Light {
-    [[offset(0)]] position : vec3<f32>;
-    [[offset(16)]] color : vec3<f32>;
+    position : vec3<f32>;
+    color : vec3<f32>;
   };
 
   [[block]] struct LightUniforms {
-    [[offset(0)]] lights : [[stride(32)]] array<Light, 5>;
+    lights : [[stride(32)]] array<Light, 5>;
     [[offset(160)]] lightAmbient : f32;
   };
   [[binding(1), group(0)]] var<uniform> light : LightUniforms;

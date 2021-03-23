@@ -58,14 +58,14 @@ ${defines.USE_VERTEX_COLOR ? `
 ` : ``}
 
 [[block]] struct FrameUniforms {
-  [[offset(0)]] projectionMatrix : mat4x4<f32>;
-  [[offset(64)]] viewMatrix : mat4x4<f32>;
-  [[offset(128)]] cameraPosition : vec3<f32>;
+  projectionMatrix : mat4x4<f32>;
+  viewMatrix : mat4x4<f32>;
+  cameraPosition : vec3<f32>;
 };
 [[binding(0), group(${UNIFORM_BLOCKS.FrameUniforms})]] var<uniform> frame : FrameUniforms;
 
 [[block]] struct PrimitiveUniforms {
-  [[offset(0)]] modelMatrix : mat4x4<f32>;
+  modelMatrix : mat4x4<f32>;
 };
 [[binding(0), group(${UNIFORM_BLOCKS.PrimitiveUniforms})]] var<uniform> primitive : PrimitiveUniforms;
 
@@ -142,10 +142,10 @@ export function WEBGPU_FRAGMENT_SOURCE(defines) { return `
 ${PBR_FUNCTIONS}
 
 [[block]] struct MaterialUniforms {
-  [[offset(0)]] baseColorFactor : vec4<f32>;
-  [[offset(16)]] metallicRoughnessFactor : vec2<f32>;
-  [[offset(32)]] emissiveFactor : vec3<f32>;
-  [[offset(44)]] occlusionStrength : f32;
+  baseColorFactor : vec4<f32>;
+  metallicRoughnessFactor : vec2<f32>;
+  emissiveFactor : vec3<f32>;
+  occlusionStrength : f32;
 };
 [[binding(0), group(${UNIFORM_BLOCKS.MaterialUniforms})]] var<uniform> material : MaterialUniforms;
 
@@ -157,12 +157,12 @@ ${PBR_FUNCTIONS}
 [[group(1), binding(6)]] var<uniform_constant> emissiveTexture : texture_2d<f32>;
 
 struct Light {
-  [[offset(0)]] position : vec3<f32>;
-  [[offset(16)]] color : vec3<f32>;
+  position : vec3<f32>;
+  color : vec3<f32>;
 };
 
 [[block]] struct LightUniforms {
-  [[offset(0)]] lights : [[stride(32)]] array<Light, ${defines.LIGHT_COUNT}>;
+  lights : [[stride(32)]] array<Light, ${defines.LIGHT_COUNT}>;
   [[offset(${defines.LIGHT_COUNT * 32})]] lightAmbient : f32;
 };
 [[binding(0), group(${UNIFORM_BLOCKS.LightUniforms})]] var<uniform> light : LightUniforms;
