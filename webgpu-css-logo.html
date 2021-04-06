@@ -1,0 +1,71 @@
+<!doctype html>
+
+<html>
+    <head>
+        <style>
+          .webgpu-logo, .webgpu-logo div, .webgpu-logo div::before {
+            --color0: #005a9c;
+            --color1: #0066b0;
+            --color2: #0076cc;
+            --color3: #0093ff;
+            --color4: #0086e8;
+            --lvl0-height: 6em;
+            --lvl0-half-width: calc(var(--lvl0-height)/1.7333);
+            --lvl1-height: calc(var(--lvl0-height)*0.5);
+            --lvl1-half-width: calc(var(--lvl1-height)/1.7333);
+            --lvl2-height: calc(var(--lvl1-height)*0.5);
+            --lvl2-half-width: calc(var(--lvl2-height)/1.7333);
+
+            display: inline-block;
+            width: 0;
+            height: 0;
+            padding: 0;
+            margin: 0;
+            vertical-align: top;
+          }
+          
+          .webgpu-logo {
+            border-left: var(--lvl0-half-width) solid transparent;
+            border-right: var(--lvl0-half-width) solid transparent;
+            border-top: var(--lvl0-height) solid var(--color0);
+          }
+
+          .webgpu-logo>div, .webgpu-logo>div::before {
+            border-left: var(--lvl1-half-width) solid transparent;
+            border-right: var(--lvl1-half-width) solid transparent;
+          }
+          .webgpu-logo>div {
+            border-bottom: var(--lvl1-height) solid var(--color1);
+            margin-top: calc(var(--lvl0-height)*-1);
+            margin-left: var(--lvl1-half-width);
+          }
+          .webgpu-logo>div::before {
+            content: "";
+            border-bottom: 0;
+            border-top: var(--lvl1-height) solid var(--color2);
+            margin-top: var(--lvl1-height);
+            margin-left: calc(var(--lvl1-half-width)*-1);
+          }
+
+          .webgpu-logo>div>div, .webgpu-logo>div>div::before {
+            border-left: var(--lvl2-half-width) solid transparent;
+            border-right: var(--lvl2-half-width) solid transparent;
+          }
+          .webgpu-logo>div>div {
+            border-bottom: var(--lvl2-height) solid var(--color3);
+            margin-top: calc(var(--lvl0-height)*-1);
+            margin-left: var(--lvl2-half-width);
+          }
+          .webgpu-logo>div>div::before {
+            content: "";
+            border-bottom: 0;
+            border-top: var(--lvl2-height) solid var(--color4);
+            margin-top: var(--lvl2-height);
+            margin-left: calc(var(--lvl2-half-width)*-1);
+          }
+          </style>
+    </head>
+    <body>
+        <div class='webgpu-logo'><div><div></div></div></div></div>
+    </body>
+</html>
