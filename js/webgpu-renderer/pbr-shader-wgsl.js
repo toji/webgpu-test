@@ -149,12 +149,12 @@ ${PBR_FUNCTIONS}
 };
 [[binding(0), group(${UNIFORM_BLOCKS.MaterialUniforms})]] var<uniform> material : MaterialUniforms;
 
-[[group(1), binding(1)]] var<uniform_constant> defaultSampler : sampler;
-[[group(1), binding(2)]] var<uniform_constant> baseColorTexture : texture_2d<f32>;
-[[group(1), binding(3)]] var<uniform_constant> normalTexture : texture_2d<f32>;
-[[group(1), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_2d<f32>;
-[[group(1), binding(5)]] var<uniform_constant> occlusionTexture : texture_2d<f32>;
-[[group(1), binding(6)]] var<uniform_constant> emissiveTexture : texture_2d<f32>;
+[[group(1), binding(1)]] var defaultSampler : sampler;
+[[group(1), binding(2)]] var baseColorTexture : texture_2d<f32>;
+[[group(1), binding(3)]] var normalTexture : texture_2d<f32>;
+[[group(1), binding(4)]] var metallicRoughnessTexture : texture_2d<f32>;
+[[group(1), binding(5)]] var occlusionTexture : texture_2d<f32>;
+[[group(1), binding(6)]] var emissiveTexture : texture_2d<f32>;
 
 struct Light {
   position : vec3<f32>;

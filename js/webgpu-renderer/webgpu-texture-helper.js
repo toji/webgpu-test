@@ -118,7 +118,7 @@ export class GPUTextureHelper {
 
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [{
-          attachment: srcTexture.createView({
+          view: srcTexture.createView({
             baseMipLevel: i,
             mipLevelCount: 1
           }),

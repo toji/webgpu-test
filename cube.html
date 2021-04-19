@@ -33,22 +33,28 @@
           modelViewProjectionMatrix : mat4x4<f32>;
         };
         [[set(0), binding(0)]] var<uniform> uniforms : Uniforms;
+        
+        struct VertexInput {
+          [[location(0)]] position : vec4<f32>;
+          [[location(1)]] color : vec4<f32>;
+        };
 
-        [[location(0)]] var<in> position : vec4<f32>;
-        [[location(1)]] var<in> color : vec4<f32>;
-
-        [[location(0)]] var<out> outColor : vec4<f32>;
-        [[builtin(position)]] var<out> vertPosition : vec4<f32>;
+        struct VertexOutput {
+          [[location(0)]] color : vec4<f32>;
+          [[builtin(position)]] position : vec4<f32>;
+        };
 
         [[stage(vertex)]]
-        fn vertMain() -> void {
-          outColor = color;
-          vertPosition = uniforms.modelViewProjectionMatrix * position;
+        fn vertMain(input : VertexInput) -> VertexOutput {
+          var output : VertexOutput;
+          output.color = input.color;
+          output.position = uniforms.modelViewProjectionMatrix * input.position;
+          return output;
         }
 
         [[stage(fragment)]]
-        fn fragMain([[location(0)]] inColor : vec4<f32>) -> [[location(0)]] vec4<f32> {
-          return inColor;
+        fn fragMain([[location(0)]] color : vec4<f32>) -> [[location(0)]] vec4<f32> {
+          return color;
         }
       `;
 
@@ -199,15 +205,16 @@
 
         renderPassDescriptor = {
           colorAttachments: [{
-            // attachment is acquired and set in render loop.
-            attachment: undefined,
+            // view is acquired and set in render loop.
+            view: undefined,
             resolveTarget: undefined,
 
             loadValue: { r: 0.0, g: 0.5, b: 0.0, a: 1.0 },
+            storeOp: 'store'
           }],
           depthStencilAttachment: {
-            // attachment is acquired and set in render loop.
-            attachment: undefined,
+            // view is acquired and set in render loop.
+            view: undefined,
 
             depthLoadValue: 1.0,
             depthStoreOp: 'store',
@@ -241,7 +248,7 @@
             format: swapChainFormat,
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
           });
-          renderPassDescriptor.colorAttachments[0].attachment = colorTexture.createView();
+          renderPassDescriptor.colorAttachments[0].view = colorTexture.createView();
 
           depthTexture = device.createTexture({
             size: {
@@ -252,7 +259,7 @@
             format: depthFormat,
             usage: GPUTextureUsage.RENDER_ATTACHMENT
           });
-          renderPassDescriptor.depthStencilAttachment.attachment = depthTexture.createView();
+          renderPassDescriptor.depthStencilAttachment.view = depthTexture.createView();
 
           const aspect = Math.abs(canvas.width / canvas.height);
           mat4.perspective(projectionMatrix, Math.PI * 0.5, aspect, 0.1, 1000.0);
