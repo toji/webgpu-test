@@ -117,9 +117,11 @@
           }
         `,
         fragment: `
+          [[location(0)]] var<out> outPosition : vec4<f32>;
           [[stage(fragment)]]
-          fn main([[location(0)]] vTex : vec2<f32>) -> [[location(0)]] vec4<f32> {
-            return vec4<f32>(vTex.x / 2.0, vTex.y / 2.0, 0.0, 1.0);
+          fn main([[location(0)]] vTex : vec2<f32>) -> void {
+            outPosition = vec4<f32>(vTex.x / 2.0, vTex.y / 2.0, 0.0, 1.0);
+            return;
           }
         `
       };
@@ -157,9 +159,11 @@
         `,
 
         fragment: `
+          [[location(0)]] var<out> outPosition : vec4<f32>;
           [[stage(fragment)]]
-          fn main([[location(0)]] vTex : vec2<f32>) -> [[location(0)]] vec4<f32> {
-            return vec4<f32>(0.0, vTex.x, vTex.y, 1.0);
+          fn main([[location(0)]] vTex : vec2<f32>) -> void {
+            outPosition = vec4<f32>(0.0, vTex.x, vTex.y, 1.0);
+            return;
           }
         `
       };
@@ -293,6 +297,8 @@
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
           });
           this.colorAttachment.view = msaaColorTexture.createView();
+          // For backwards compat with older builds.
+          this.colorAttachment.attachment = this.colorAttachment.view;
 
           const depthTexture = this.device.createTexture({
             size: { width, height },
@@ -301,6 +307,8 @@
             usage: GPUTextureUsage.RENDER_ATTACHMENT
           });
           this.depthAttachment.view = depthTexture.createView();
+          // For backwards compat with older builds.
+          this.depthAttachment.attachment = this.depthAttachment.view
         }
 
         initializeTile(tile) {
