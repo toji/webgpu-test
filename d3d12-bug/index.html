@@ -34,64 +34,7 @@
 
   <body>
     <script type='module'>
-      import {vec3, mat4} from './gl-matrix/src/gl-matrix.js';
-
-      const projectionMat = mat4.create();
-
-      const tileColumns = 5;
-      const tileRows = 6;
-      const tiles = [];
-
-      class TextureTile {
-        constructor(column, row) {
-          this.column = column;
-          this.row = row;
-          this.x = ((column - (tileColumns / 2)) * 2) + 1;
-          this.yOffset = -(row * 2 + (column * 0.66));
-          this.scroll = 0;
-          this.modelView = mat4.create();
-
-          this.loading = false;
-          this.nextLoad = column * row * 100;
-          this.scale = 0;
-          this.targetScale = 0;
-        }
-
-        refresh() {
-          this.nextLoad = this.column * this.row * 100;
-        }
-
-        update(delta) {
-          if (this.nextLoad <= 0 && !this.loading) {
-            this.loading = true;
-            this.targetScale = 0;
-            setTimeout(() => {
-              this.loading = false;
-              this.nextLoad = 5000 + (Math.random() * 3000);
-              this.targetScale = 1;
-            }, 500);
-          } else {
-            this.nextLoad -= delta;
-          }
-
-          mat4.identity(this.modelView);
-          this.scroll -= delta / 1000;
-          const y = ((this.yOffset + this.scroll) % (tileRows * 2)) + tileRows;
-          mat4.translate(this.modelView, this.modelView, [this.x, y, 0.0]);
-
-          if (this.scale != this.targetScale) {
-            this.scale += ( this.targetScale - this.scale ) * 0.1;
-          }
-
-          mat4.scale(this.modelView, this.modelView, [this.scale, this.scale, 1.0]);
-        }
-      }
-
-      for (let i = 0; i < tileColumns; ++i) {
-        for (let j = 0; j < tileRows; ++j) {
-          tiles.push(new TextureTile(i, j));
-        }
-      }
+      import {mat4} from './gl-matrix/src/gl-matrix.js';
 
       const SAMPLE_COUNT = 4;
       const DEPTH_FORMAT = 'depth24plus';
@@ -101,26 +44,23 @@
           var<private> pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
             vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
           );
-          var<private> tex : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
-            vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0)
-          );
           [[builtin(position)]] var<out> Position : vec4<f32>;
           [[builtin(vertex_index)]] var<in> VertexIndex : i32;
 
-          [[location(0)]] var<out> vTex : vec2<f32>;
+          [[location(0)]] var<out> vPos : vec2<f32>;
 
           [[stage(vertex)]]
           fn main() -> void {
-            vTex = tex[VertexIndex];
-            Position = vec4<f32>(pos[VertexIndex], 0.0, 1.0);
+            vPos = pos[VertexIndex];
+            Position = vec4<f32>(vPos, 0.0, 1.0);
             return;
           }
         `,
         fragment: `
-          [[location(0)]] var<out> outPosition : vec4<f32>;
+          [[location(0)]] var<out> outColor : vec4<f32>;
           [[stage(fragment)]]
-          fn main([[location(0)]] vTex : vec2<f32>) -> void {
-            outPosition = vec4<f32>(vTex.x / 2.0, vTex.y / 2.0, 0.0, 1.0);
+          fn main([[location(0)]] vPos : vec2<f32>) -> void {
+            outColor = vec4<f32>((vPos.x + 1.0) / 2.0, (vPos.y + 1.0) / 2.0, 0.0, 1.0);
             return;
           }
         `
@@ -131,38 +71,31 @@
           var<private> pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
             vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0)
           );
-          var<private> tex : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
-            vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0)
-          );
 
           [[builtin(position)]] var<out> Position : vec4<f32>;
           [[builtin(vertex_index)]] var<in> VertexIndex : i32;
 
-          [[location(0)]] var<out> vTex : vec2<f32>;
-
-          [[block]] struct TileUniforms {
-            modelViewMatrix : mat4x4<f32>;
-          };
-          [[group(0), binding(0)]] var<uniform> tileUniforms : TileUniforms;
+          [[location(0)]] var<out> vPos : vec2<f32>;
 
           [[block]] struct FrameUniforms {
             projectionMatrix : mat4x4<f32>;
+            tileMatrix : mat4x4<f32>;
           };
-          [[group(1), binding(0)]] var<uniform> frameUniforms : FrameUniforms;
+          [[group(0), binding(0)]] var<uniform> frameUniforms : FrameUniforms;
 
           [[stage(vertex)]]
           fn main() -> void {
-            vTex = tex[VertexIndex];
-            Position = frameUniforms.projectionMatrix * tileUniforms.modelViewMatrix * vec4<f32>(pos[VertexIndex], 0.0, 1.0);
+            vPos = pos[VertexIndex];
+            Position = frameUniforms.projectionMatrix * frameUniforms.tileMatrix * vec4<f32>(vPos, 0.0, 1.0);
             return;
           }
         `,
 
         fragment: `
-          [[location(0)]] var<out> outPosition : vec4<f32>;
+          [[location(0)]] var<out> outColor : vec4<f32>;
           [[stage(fragment)]]
-          fn main([[location(0)]] vTex : vec2<f32>) -> void {
-            outPosition = vec4<f32>(0.0, vTex.x, vTex.y, 1.0);
+          fn main([[location(0)]] vPos : vec2<f32>) -> void {
+            outColor = vec4<f32>(0.0, (vPos.x + 1.0) / 2.0, (vPos.y + 1.0) / 2.0, 1.0);
             return;
           }
         `
@@ -172,6 +105,8 @@
         constructor() {
           this.canvas = document.createElement('canvas');
           this.context = this.canvas.getContext('gpupresent');
+          this.projectionMatrix = mat4.create();
+          this.tileMatrix = mat4.create();
         }
 
         async initialize() {
@@ -272,12 +207,12 @@
           });
 
           this.frameUniformsBuffer = this.device.createBuffer({
-            size: 16 * Float32Array.BYTES_PER_ELEMENT, // Enough for one matrix
+            size: 32 * Float32Array.BYTES_PER_ELEMENT, // Enough for two matrix
             usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
           });
 
           this.frameUniformBindGroup = this.device.createBindGroup({
-            layout: this.tilePipeline.getBindGroupLayout(1),
+            layout: this.tilePipeline.getBindGroupLayout(0),
             entries: [{
               binding: 0,
               resource: {
@@ -287,8 +222,22 @@
           });
         }
 
-        onCanvasResize(width, height) {
+        onCanvasResize() {
+          const width = Math.round(this.canvas.clientWidth * devicePixelRatio);
+          const height = Math.round(this.canvas.clientHeight * devicePixelRatio);
+          this.canvas.width = width;
+          this.canvas.height = height;
+
+          const aspect = width/height;
+          mat4.ortho(this.projectionMatrix,
+            -3 * aspect, 3 * aspect,
+            -(4 - 1), (4 - 1),
+            -10, 10);
+
           if (!this.device) return;
+
+          // Update the Projection Matrix
+          this.device.queue.writeBuffer(this.frameUniformsBuffer, 0, this.projectionMatrix);
 
           const msaaColorTexture = this.device.createTexture({
             size: { width, height },
@@ -312,16 +261,13 @@
         }
 
         initializeTile(tile) {
-          tile.texture = null;
-          tile.bindGroup = null;
-
           tile.uniformBuffer = this.device.createBuffer({
             size: 16 * Float32Array.BYTES_PER_ELEMENT, // Enough for one matrix
             usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
           });
 
           tile.bindGroup = this.device.createBindGroup({
-            layout: this.tilePipeline.getBindGroupLayout(0),
+            layout: this.tilePipeline.getBindGroupLayout(1),
             entries: [{
               binding: 0,
               resource: {
@@ -329,16 +275,15 @@
               },
             }],
           });
+
+          this.device.queue.writeBuffer(tile.uniformBuffer, 0, tile.modelView);
         }
 
-        loadTextureFromUrl(tile) {
-          return Promise.resolve(null);
-        }
-
-        onFrame(projectionMat, tiles) {
-          // Update the FrameUniforms buffer with the values that are used by every
-          // program and don't change for the duration of the frame.
-          this.device.queue.writeBuffer(this.frameUniformsBuffer, 0, projectionMat);
+        onFrame(timestamp) {
+          // Update the Tile Matrix
+          mat4.identity(this.tileMatrix);
+          mat4.rotateZ(this.tileMatrix, this.tileMatrix, timestamp / 1000);
+          this.device.queue.writeBuffer(this.frameUniformsBuffer, 16 * Float32Array.BYTES_PER_ELEMENT, this.tileMatrix);
 
           this.colorAttachment.resolveTarget = this.swapChain.getCurrentTexture().createView();
 
@@ -350,15 +295,10 @@
           passEncoder.setPipeline(this.backgroundPipeline);
           passEncoder.draw(4, 1, 0, 0);
 
-          // Draw each tile.
-          passEncoder.setBindGroup(1, this.frameUniformBindGroup);
-
+          // Draw the tile.
           passEncoder.setPipeline(this.tilePipeline);
-          for (let tile of tiles) {
-            this.device.queue.writeBuffer(tile.uniformBuffer, 0, tile.modelView);
-            passEncoder.setBindGroup(0, tile.bindGroup);
-            passEncoder.draw(4);
-          }
+          passEncoder.setBindGroup(0, this.frameUniformBindGroup);
+          passEncoder.draw(4);
 
           passEncoder.endPass();
           this.device.queue.submit([commandEncoder.finish()]);
@@ -367,49 +307,15 @@
 
       const renderer = new WebGPURenderer();
       renderer.initialize().then(() => {
-        for (let tile of tiles) {
-          renderer.initializeTile(tile);
-        }
-
-        const canvas = renderer.canvas;
-        document.body.appendChild(canvas);
-        function onResize() {
-          const width = Math.round(canvas.clientWidth * devicePixelRatio);
-          const height = Math.round(canvas.clientHeight * devicePixelRatio);
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const aspect = width/height;
-          mat4.ortho(projectionMat,
-            -tileColumns * aspect, tileColumns * aspect,
-            -(tileRows - 1), (tileRows - 1),
-            -10, 10);
-
-          renderer.onCanvasResize(width, height);
-        };
-        onResize();
-        window.addEventListener('resize', onResize);
-
+        document.body.appendChild(renderer.canvas);
+        window.addEventListener('resize', () => { renderer.onCanvasResize(); });
+        renderer.onCanvasResize();
         window.requestAnimationFrame(onFrame);
       });
 
-      let lastTimestamp = 0;
       function onFrame(timestamp) {
-        let delta = lastTimestamp ? timestamp - lastTimestamp : 0;
-        // Sanity check the timestamp delta. If we get a huge gap (for example, if the tab is backgrounds), clamp it.
-        if (delta > 5000) {
-          delta = 16.66666;
-        }
-        lastTimestamp = timestamp;
-
         window.requestAnimationFrame(onFrame);
-
-        for (let tile of tiles) {
-          tile.update(delta);
-        }
-
-        renderer.onFrame(projectionMat, tiles, delta);
+        renderer.onFrame(timestamp);
       }
     </script>
   </body>
