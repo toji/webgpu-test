@@ -2,6 +2,9 @@
 
 <html>
     <head>
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
+
         <style>
           .webgpu-logo, .webgpu-logo div, .webgpu-logo div::before {
             --color0: #005a9c;
@@ -9,7 +12,7 @@
             --color2: #0076cc;
             --color3: #0093ff;
             --color4: #0086e8;
-            --lvl0-height: 6em;
+            --lvl0-height: 128px;
             --lvl0-half-width: calc(var(--lvl0-height)/1.7333);
             --lvl1-height: calc(var(--lvl0-height)*0.5);
             --lvl1-half-width: calc(var(--lvl1-height)/1.7333);
@@ -28,6 +31,13 @@
             border-left: var(--lvl0-half-width) solid transparent;
             border-right: var(--lvl0-half-width) solid transparent;
             border-top: var(--lvl0-height) solid var(--color0);
+          }
+
+          .webgpu-logo::after {
+            content: "WebGPU";
+            font-family: 'Poppins', sans-serif;
+            font-size: calc(var(--lvl0-height)*0.42);
+            margin-left: calc(var(--lvl0-half-width)*-1);
           }
 
           .webgpu-logo>div, .webgpu-logo>div::before {
