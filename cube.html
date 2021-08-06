@@ -286,6 +286,8 @@
         return modelViewProjectionMatrix;
       }
 
+      // This method of screenshotting a WebGPU context requires that the context be configured with
+      // GPUTextureUsage.COPY_SRC usage.
       async function downloadTextureAsPng(device, texture, width, height) {
         const bytesPerRow = Math.ceil((width * 4)/256) * 256;
         const alignedSize = bytesPerRow * height;
