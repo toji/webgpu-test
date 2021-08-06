@@ -32,7 +32,7 @@
         [[block]] struct Uniforms {
           modelViewProjectionMatrix : mat4x4<f32>;
         };
-        [[set(0), binding(0)]] var<uniform> uniforms : Uniforms;
+        [[group(0), binding(0)]] var<uniform> uniforms : Uniforms;
         
         struct VertexInput {
           [[location(0)]] position : vec4<f32>;
@@ -131,8 +131,7 @@
       let adapter;
       let device;
       let queue;
-      let swapChainFormat;
-      let swapChain;
+      let contextFormat;
       let vertexBuffer;
       let colorTexture;
       let depthTexture;
@@ -153,14 +152,14 @@
         // Resize after getting the device to avoid Chrome bug.
         canvas.width = canvas.height = 300;
 
-        context = canvas.getContext('gpupresent');
-        swapChainFormat = 'bgra8unorm';
-        if ('getSwapChainPreferredFormat' in context) {
-          swapChainFormat = context.getSwapChainPreferredFormat(adapter);
+        context = canvas.getContext('webgpu');
+        contextFormat = 'bgra8unorm';
+        if ('getPreferredFormat' in context) {
+          contextFormat = context.getPreferredFormat(adapter);
         }
-        swapChain = context.configureSwapChain({
+        context.configure({
           device,
-          format: swapChainFormat,
+          format: contextFormat,
           usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
         });
 
@@ -187,7 +186,7 @@
             module: shaderModule,
             entryPoint: 'fragMain',
             targets: [{
-              format: swapChainFormat,
+              format: contextFormat,
             }],
           },
 
@@ -239,13 +238,19 @@
         });
 
         function onResize() {
+          context.configure({
+            device,
+            format: contextFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+          });
+
           colorTexture = device.createTexture({
             size: {
               width: canvas.width,
               height: canvas.height,
             },
             sampleCount,
-            format: swapChainFormat,
+            format: contextFormat,
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
           });
           renderPassDescriptor.colorAttachments[0].view = colorTexture.createView();
@@ -333,7 +338,7 @@
 
         const commandEncoder = device.createCommandEncoder({});
 
-        const swapTexture = swapChain.getCurrentTexture();
+        const swapTexture = context.getCurrentTexture();
         renderPassDescriptor.colorAttachments[0].resolveTarget = swapTexture.createView();
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
 
