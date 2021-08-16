@@ -1,0 +1,307 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+
+    <title>WebGPU test</title>
+  </head>
+  <body>
+    <canvas></canvas>
+    <br/>
+    <button>Toggle invalid render pass</button>
+    <p><b>WARNING:</b> Clicking on the toggle button may cause either minor flickering or intense flashing.</p>
+    <script type="module">
+      import {mat4, vec3} from '../js/third-party/gl-matrix/src/gl-matrix.js';
+
+      const depthFormat = "depth24plus";
+      const sampleCount = 4;
+
+      const uniformBufferSize = 4 * 16; // 4x4 matrix
+
+      const shaderSrc = `
+        [[block]] struct Uniforms {
+          modelViewProjectionMatrix : mat4x4<f32>;
+        };
+        [[group(0), binding(0)]] var<uniform> uniforms : Uniforms;
+        
+        struct VertexInput {
+          [[location(0)]] position : vec4<f32>;
+          [[location(1)]] color : vec4<f32>;
+        };
+
+        struct VertexOutput {
+          [[location(0)]] color : vec4<f32>;
+          [[builtin(position)]] position : vec4<f32>;
+        };
+
+        [[stage(vertex)]]
+        fn vertMain(input : VertexInput) -> VertexOutput {
+          var output : VertexOutput;
+          output.color = input.color;
+          output.position = uniforms.modelViewProjectionMatrix * input.position;
+          return output;
+        }
+
+        [[stage(fragment)]]
+        fn fragMain([[location(0)]] color : vec4<f32>) -> [[location(0)]] vec4<f32> {
+          return color;
+        }
+      `;
+
+      const Cube = {
+        layout: {
+          arrayStride: 4 * 10, // Byte size of one cube vertex
+          attributes: [{
+            // position
+            shaderLocation: 0,
+            offset: 0,
+            format: "float32x4"
+          }, {
+            // color
+            shaderLocation: 1,
+            offset: 4 * 4,
+            format: "float32x4"
+          },
+          {
+            // UV
+            shaderLocation: 2,
+            offset: 4 * 8,
+            format: "float32x2"
+          }]
+        },
+        vertexCount: 36,
+        vertexArray: new Float32Array([
+          // float4 position, float4 color, float2 uv,
+          1, -1, 1, 1,   1, 0, 1, 1,  1, 1,
+          -1, -1, 1, 1,  0, 0, 1, 1,  0, 1,
+          -1, -1, -1, 1, 0, 0, 0, 1,  0, 0,
+          1, -1, -1, 1,  1, 0, 0, 1,  1, 0,
+          1, -1, 1, 1,   1, 0, 1, 1,  1, 1,
+          -1, -1, -1, 1, 0, 0, 0, 1,  0, 0,
+
+          1, 1, 1, 1,    1, 1, 1, 1,  1, 1,
+          1, -1, 1, 1,   1, 0, 1, 1,  0, 1,
+          1, -1, -1, 1,  1, 0, 0, 1,  0, 0,
+          1, 1, -1, 1,   1, 1, 0, 1,  1, 0,
+          1, 1, 1, 1,    1, 1, 1, 1,  1, 1,
+          1, -1, -1, 1,  1, 0, 0, 1,  0, 0,
+
+          -1, 1, 1, 1,   0, 1, 1, 1,  1, 1,
+          1, 1, 1, 1,    1, 1, 1, 1,  0, 1,
+          1, 1, -1, 1,   1, 1, 0, 1,  0, 0,
+          -1, 1, -1, 1,  0, 1, 0, 1,  1, 0,
+          -1, 1, 1, 1,   0, 1, 1, 1,  1, 1,
+          1, 1, -1, 1,   1, 1, 0, 1,  0, 0,
+
+          -1, -1, 1, 1,  0, 0, 1, 1,  1, 1,
+          -1, 1, 1, 1,   0, 1, 1, 1,  0, 1,
+          -1, 1, -1, 1,  0, 1, 0, 1,  0, 0,
+          -1, -1, -1, 1, 0, 0, 0, 1,  1, 0,
+          -1, -1, 1, 1,  0, 0, 1, 1,  1, 1,
+          -1, 1, -1, 1,  0, 1, 0, 1,  0, 0,
+
+          1, 1, 1, 1,    1, 1, 1, 1,  1, 1,
+          -1, 1, 1, 1,   0, 1, 1, 1,  0, 1,
+          -1, -1, 1, 1,  0, 0, 1, 1,  0, 0,
+          -1, -1, 1, 1,  0, 0, 1, 1,  0, 0,
+          1, -1, 1, 1,   1, 0, 1, 1,  1, 0,
+          1, 1, 1, 1,    1, 1, 1, 1,  1, 1,
+
+          1, -1, -1, 1,  1, 0, 0, 1,  1, 1,
+          -1, -1, -1, 1, 0, 0, 0, 1,  0, 1,
+          -1, 1, -1, 1,  0, 1, 0, 1,  0, 0,
+          1, 1, -1, 1,   1, 1, 0, 1,  1, 0,
+          1, -1, -1, 1,  1, 0, 0, 1,  1, 1,
+          -1, 1, -1, 1,  0, 1, 0, 1,  0, 0,
+        ])
+      };
+
+      let canvas;
+      let context;
+      let adapter;
+      let device;
+      let queue;
+      let contextFormat;
+      let vertexBuffer;
+      let colorTexture;
+      let depthTexture;
+      let pipeline;
+      let renderPassDescriptor;
+      let uniformBuffer;
+      let uniformBindGroup;
+      let invalidRenderPass = false;
+
+      let viewMatrix = mat4.create();
+      let projectionMatrix = mat4.create();
+      let modelViewProjectionMatrix = mat4.create();
+
+      async function initWebGPU() {
+        canvas = document.querySelector('canvas');
+
+        adapter = await navigator.gpu.requestAdapter();
+        device = await adapter.requestDevice();
+        // Resize after getting the device to avoid Chrome bug.
+        canvas.width = canvas.height = 512;
+
+        context = canvas.getContext('webgpu');
+        contextFormat = context.getPreferredFormat(adapter);
+
+        context.configure({
+          device,
+          format: contextFormat,
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+        });
+
+        vertexBuffer = device.createBuffer({
+          size: Cube.vertexArray.byteLength,
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+        device.queue.writeBuffer(vertexBuffer, 0, Cube.vertexArray.buffer);
+
+        const shaderModule = device.createShaderModule({ code: shaderSrc });
+
+        pipeline = device.createRenderPipeline({
+          vertex: {
+            module: shaderModule,
+            entryPoint: 'vertMain',
+            buffers: [Cube.layout],
+          },
+          fragment: {
+            module: shaderModule,
+            entryPoint: 'fragMain',
+            targets: [{
+              format: contextFormat,
+            }],
+          },
+
+          primitive: {
+            topology: 'triangle-list',
+            cullMode: 'back',
+          },
+          depthStencil: {
+            format: depthFormat,
+            depthWriteEnabled: true,
+            depthCompare: 'less',
+          },
+          multisample: { count: sampleCount, },
+        });
+
+        renderPassDescriptor = {
+          colorAttachments: [{
+            // view is acquired and set in render loop.
+            view: undefined,
+            resolveTarget: undefined,
+
+            loadValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            storeOp: 'store'
+          }],
+          depthStencilAttachment: {
+            // view is acquired and set in render loop.
+            view: undefined,
+
+            depthLoadValue: 1.0,
+            depthStoreOp: 'store',
+            stencilLoadValue: 0,
+            stencilStoreOp: 'store',
+          }
+        };
+
+        uniformBuffer = device.createBuffer({
+          size: uniformBufferSize,
+          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        uniformBindGroup = device.createBindGroup({
+          layout: pipeline.getBindGroupLayout(0),
+          entries: [{
+            binding: 0,
+            resource: {
+              buffer: uniformBuffer,
+            },
+          }],
+        });
+
+        function onResize() {
+          context.configure({
+            device,
+            format: contextFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+          });
+
+          colorTexture = device.createTexture({
+            size: {
+              width: canvas.width,
+              height: canvas.height,
+            },
+            sampleCount,
+            format: contextFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+          renderPassDescriptor.colorAttachments[0].view = colorTexture.createView();
+
+          depthTexture = device.createTexture({
+            size: {
+              width: canvas.width,
+              height: canvas.height,
+            },
+            sampleCount,
+            format: depthFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT
+          });
+          renderPassDescriptor.depthStencilAttachment.view = depthTexture.createView();
+
+          const aspect = Math.abs(canvas.width / canvas.height);
+          mat4.perspective(projectionMatrix, Math.PI * 0.5, aspect, 0.1, 1000.0);
+        }
+        window.addEventListener('resize', onResize);
+        onResize();
+
+        window.requestAnimationFrame(onFrame);
+      }
+
+      function getTransformationMatrix() {
+        mat4.identity(viewMatrix);
+        mat4.translate(viewMatrix, viewMatrix, vec3.fromValues(0, 0, -5));
+        let now = Date.now() / 250;
+        mat4.rotate(viewMatrix, viewMatrix, 1, vec3.fromValues(Math.sin(now), Math.cos(now), 0));
+
+        mat4.multiply(modelViewProjectionMatrix, projectionMatrix, viewMatrix);
+
+        return modelViewProjectionMatrix;
+      }
+
+      function onFrame() {
+        window.requestAnimationFrame(onFrame);
+
+        device.queue.writeBuffer(uniformBuffer, 0, getTransformationMatrix());
+
+        const commandEncoder = device.createCommandEncoder({});
+
+        const swapTexture = context.getCurrentTexture();
+        renderPassDescriptor.colorAttachments[0].resolveTarget = swapTexture.createView();
+        const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+
+        passEncoder.setPipeline(pipeline);
+        if (!invalidRenderPass) {
+          passEncoder.setBindGroup(0, uniformBindGroup);
+        }
+        passEncoder.setVertexBuffer(0, vertexBuffer);
+        passEncoder.draw(Cube.vertexCount, 1, 0, 0);
+        passEncoder.endPass();
+
+        device.queue.submit([commandEncoder.finish()]);
+      }
+
+      initWebGPU();
+
+      const button = document.querySelector('button');
+      button.addEventListener('click', () => {
+        invalidRenderPass = !invalidRenderPass;
+      });
+    </script>
+  </body>
+</html>
