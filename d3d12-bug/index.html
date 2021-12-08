@@ -239,6 +239,9 @@
           // Update the Projection Matrix
           this.device.queue.writeBuffer(this.frameUniformsBuffer, 0, this.projectionMatrix);
 
+          mat4.identity(this.tileMatrix);
+          this.device.queue.writeBuffer(this.frameUniformsBuffer, 16 * Float32Array.BYTES_PER_ELEMENT, this.tileMatrix);
+
           const msaaColorTexture = this.device.createTexture({
             size: { width, height },
             sampleCount: SAMPLE_COUNT,
@@ -298,7 +301,7 @@
           // Draw the tile.
           passEncoder.setPipeline(this.tilePipeline);
           passEncoder.setBindGroup(0, this.frameUniformBindGroup);
-          passEncoder.draw(4);
+          passEncoder.draw(4, undefined, 0, 0);
 
           passEncoder.endPass();
           this.device.queue.submit([commandEncoder.finish()]);

@@ -22,59 +22,48 @@ export class GPUTextureHelper {
   constructor(device) {
     this.device = device;
 
-    const mipmapVertexSource = `
-      const pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
-        vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0),
-        vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0));
-      const tex : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
-        vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0),
-        vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 1.0));
+    const mipmapShaderModule = this.device.createShaderModule({
+      code: `
+        var<private> pos : array<vec2<f32>, 3> = array<vec2<f32>, 3>(
+          vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0, 3.0), vec2<f32>(3.0, -1.0));
 
-      [[builtin(position)]] var<out> outPosition : vec4<f32>;
-      [[builtin(vertex_index)]] var<in> vertexIndex : i32;
+        struct VertexOutput {
+          [[builtin(position)]] position : vec4<f32>;
+          [[location(0)]] texCoord : vec2<f32>;
+        };
 
-      [[location(0)]] var<out> vTex : vec2<f32>;
+        [[stage(vertex)]]
+        fn vertexMain([[builtin(vertex_index)]] vertexIndex : u32) -> VertexOutput {
+          var output : VertexOutput;
+          output.texCoord = pos[vertexIndex] * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5);
+          output.position = vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+          return output;
+        }
 
-      [[stage(vertex)]]
-      fn main() -> void {
-        vTex = tex[vertexIndex];
-        outPosition = vec4<f32>(pos[vertexIndex], 0.0, 1.0);
-        return;
-      }
-  `;
+        [[binding(0), group(0)]] var imgSampler : sampler;
+        [[binding(1), group(0)]] var img : texture_2d<f32>;
 
-    const mipmapFragmentSource = `
-      [[binding(0), group(0)]] var imgSampler : sampler;
-      [[binding(1), group(0)]] var img : texture_2d<f32>;
-
-      [[stage(fragment)]]
-      fn main([[location(0)]] vTex : vec2<f32>) -> [[location(0)]] vec4<f32> {
-        return textureSample(img, imgSampler, vTex);
-      }
-    `;
+        [[stage(fragment)]]
+        fn fragmentMain([[location(0)]] texCoord : vec2<f32>) -> [[location(0)]] vec4<f32> {
+          return textureSample(img, imgSampler, texCoord);
+        }
+      `,
+    });
 
     this.mipmapSampler = device.createSampler({ minFilter: 'linear' });
 
     this.mipmapPipeline = device.createRenderPipeline({
       vertex: {
-        module: device.createShaderModule({
-          code: mipmapVertexSource
-        }),
-        entryPoint: 'main',
+        module: mipmapShaderModule,
+        entryPoint: 'vertexMain',
       },
       fragment: {
-        module: device.createShaderModule({
-          code: mipmapFragmentSource
-        }),
-        entryPoint: 'main',
+        module: mipmapShaderModule,
+        entryPoint: 'fragmentMain',
         targets: [{
           format: 'rgba8unorm',
         }],
-      },
-      primitive: {
-        topology: 'triangle-strip',
-        stripIndexFormat: 'uint32',
-      },
+      }
     });
   }
 
@@ -92,10 +81,10 @@ export class GPUTextureHelper {
       format: 'rgba8unorm',
       // TO COMPLAIN ABOUT: Kind of worrying that this style of mipmap generation implies that almost every texture
       // generated will be an output attachment. There's gotta be a performance penalty for that.
-      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED | GPUTextureUsage.RENDER_ATTACHMENT,
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
       mipLevelCount
     });
-    this.device.queue.copyImageBitmapToTexture({ imageBitmap }, { texture: srcTexture }, textureSize);
+    this.device.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture: srcTexture }, textureSize);
 
     const commandEncoder = this.device.createCommandEncoder({});
 
@@ -127,7 +116,7 @@ export class GPUTextureHelper {
       });
       passEncoder.setPipeline(this.mipmapPipeline);
       passEncoder.setBindGroup(0, bindGroup);
-      passEncoder.draw(4, 1, 0, 0);
+      passEncoder.draw(3);
       passEncoder.endPass();
 
       textureSize.width = Math.ceil(textureSize.width / 2);
@@ -147,7 +136,7 @@ export class GPUTextureHelper {
     const texture = this.device.createTexture({
       size: textureSize,
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED,
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.device.queue.copyImageBitmapToTexture({ imageBitmap }, { texture }, textureSize);
 
@@ -161,7 +150,7 @@ export class GPUTextureHelper {
     const texture = this.device.createTexture({
       size: imageSize,
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED,
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
     });
 
     const textureDataBuffer = this.device.createBuffer({

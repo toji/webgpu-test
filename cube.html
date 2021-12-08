@@ -354,14 +354,25 @@
 
         if (screenshot) {
           screenshot = false;
-          downloadTextureAsPng(device, swapTexture, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            const a = document.createElement('a');
+            a.href = window.URL.createObjectURL(blob);
+            a.download = `screenshot_${Date.now()}.png`;
+            a.innerText = 'Download';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          });
+          //downloadTextureAsPng(device, swapTexture, canvas.width, canvas.height);
         }
       }
 
       initWebGPU();
 
       const button = document.querySelector('button');
-      button.addEventListener('click', () => { screenshot = true;});
+      button.addEventListener('click', () => {
+        screenshot = true;
+      });
     </script>
   </body>
 </html>

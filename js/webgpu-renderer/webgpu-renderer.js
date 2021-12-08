@@ -35,6 +35,10 @@ let NEXT_SHADER_ID = 0;
 const SHADER_ERROR_REGEX = /([0-9]*):([0-9*]*): (.*)$/gm;
 
 function createShaderModuleDebug(device, code) {
+  if (!device.pushErrorScope) {
+    return device.createShaderModule({ code });
+  }
+
   device.pushErrorScope('validation');
 
   const shaderModule = device.createShaderModule({ code });
@@ -122,24 +126,25 @@ const LightSprite = {
 
   [[block]] struct LightUniforms {
     lights : [[stride(32)]] array<Light, 5>;
-    [[offset(160)]] lightAmbient : f32;
+    lightAmbient : f32;
   };
   [[binding(1), group(0)]] var<uniform> light : LightUniforms;
 
-  [[location(0)]] var<out> vPos : vec2<f32>;
-  [[location(1)]] var<out> vColor : vec3<f32>;
-
-  [[builtin(position)]] var<out> outPosition : vec4<f32>;
-  [[builtin(vertex_index)]] var<in> vertexIndex : i32;
-  [[builtin(instance_index)]] var<in> instanceIndex : i32;
+  struct VertexOutput {
+    [[builtin(position)]] position : vec4<f32>;
+    [[location(0)]] vPos : vec2<f32>;
+    [[location(1)]] vColor : vec3<f32>;
+  };
 
   [[stage(vertex)]]
-  fn main() -> void {
-    const lightSize : f32 = 0.2;
+  fn main([[builtin(vertex_index)]] vertexIndex : u32, [[builtin(instance_index)]] instanceIndex : u32) -> VertexOutput {
+    let lightSize : f32 = 0.2;
 
-    vPos = pos[vertexIndex];
-    vColor = light.lights[instanceIndex].color;
-    var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * lightSize;
+    var output : VertexOutput;
+
+    output.vPos = pos[vertexIndex];
+    output.vColor = light.lights[instanceIndex].color;
+    var worldPos : vec3<f32> = vec3<f32>(output.vPos, 0.0) * lightSize;
 
     // Generate a billboarded model view matrix
     var bbModelViewMatrix : mat4x4<f32>;
@@ -157,22 +162,21 @@ const LightSprite = {
     bbModelViewMatrix[2][1] = 0.0;
     bbModelViewMatrix[2][2] = 1.0;
 
-    outPosition = frame.projectionMatrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
-    return;
+    output.position = frame.projectionMatrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
+    return output;
   }`,
 
   fragmentSource: `
-  [[location(0)]] var<out> outColor : vec4<f32>;
-
-  [[location(0)]] var<in> vPos : vec2<f32>;
-  [[location(1)]] var<in> vColor : vec3<f32>;
+  struct VertexOutput {
+    [[location(0)]] vPos : vec2<f32>;
+    [[location(1)]] vColor : vec3<f32>;
+  };
 
   [[stage(fragment)]]
-  fn main() -> void {
-    var distToCenter : f32 = length(vPos);
-    var fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
-    outColor = vec4<f32>(vColor * fade, fade);
-    return;
+  fn main(input : VertexOutput) -> [[location(0)]] vec4<f32> {
+    let distToCenter : f32 = length(input.vPos);
+    let fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
+    return vec4<f32>(input.vColor * fade, fade);
   }`,
 };
 
@@ -180,7 +184,7 @@ export class WebGPURenderer extends Renderer {
   constructor() {
     super();
 
-    this.context = this.canvas.getContext('gpupresent');
+    this.context = this.canvas.getContext('webgpu');
 
     this.programs = new Map();
 
@@ -197,11 +201,7 @@ export class WebGPURenderer extends Renderer {
     });
     this.device = await this.adapter.requestDevice();
 
-    this.swapChainFormat = this.context.getSwapChainPreferredFormat(this.adapter);
-    this.swapChain = this.context.configureSwapChain({
-      device: this.device,
-      format: this.swapChainFormat
-    });
+    this.contextFormat = this.context.getPreferredFormat(this.adapter);
 
     this.colorAttachment = {
       // view is acquired and set in onResize.
@@ -209,6 +209,7 @@ export class WebGPURenderer extends Renderer {
       // resolveTarget is acquired and set in onFrame.
       resolveTarget: undefined,
       loadValue: { r: 0.0, g: 0.0, b: 0.5, a: 1.0 },
+      storeOp: 'store',
     };
 
     this.depthAttachment = {
@@ -374,7 +375,7 @@ export class WebGPURenderer extends Renderer {
         module: createShaderModuleDebug(this.device, LightSprite.fragmentSource),
         entryPoint: 'main',
         targets: [{
-          format: this.swapChainFormat,
+          format: this.contextFormat,
           blend: {
             color: {
               srcFactor: 'src-alpha',
@@ -405,10 +406,16 @@ export class WebGPURenderer extends Renderer {
   onResize(width, height) {
     if (!this.device) return;
 
+    this.context.configure({
+      device: this.device,
+      format: this.contextFormat,
+      size: {width, height}
+    });
+
     const msaaColorTexture = this.device.createTexture({
       size: { width, height },
       sampleCount: SAMPLE_COUNT,
-      format: this.swapChainFormat,
+      format: this.contextFormat,
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.colorAttachment.view = msaaColorTexture.createView();
@@ -452,7 +459,7 @@ export class WebGPURenderer extends Renderer {
 
     // Create a bundle we can use to replay our scene drawing each frame
     const renderBundleEncoder = this.device.createRenderBundleEncoder({
-      colorFormats: [ this.swapChainFormat ],
+      colorFormats: [ this.contextFormat ],
       depthStencilFormat: DEPTH_FORMAT,
       sampleCount: SAMPLE_COUNT
     });
@@ -823,7 +830,7 @@ export class WebGPURenderer extends Renderer {
           module: shaderModule.fragmentModule,
           entryPoint: 'main',
           targets: [{
-            format: this.swapChainFormat,
+            format: this.contextFormat,
             blend
           }],
         },
@@ -879,7 +886,7 @@ export class WebGPURenderer extends Renderer {
   onFrame(timestamp) {
     // TODO: If we want multisampling this should attach to the resolveTarget,
     // but there seems to be a bug with that right now?
-    this.colorAttachment.resolveTarget = this.swapChain.getCurrentTexture().createView();
+    this.colorAttachment.resolveTarget = this.context.getCurrentTexture().createView();
 
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.

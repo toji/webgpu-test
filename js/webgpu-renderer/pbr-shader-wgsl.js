@@ -33,29 +33,32 @@ export const UNIFORM_BLOCKS = {
   LightUniforms: 3
 };
 
-function PBR_VARYINGS(defines, dir) { return `
-[[location(0)]] var<${dir}> vWorldPos : vec3<f32>;
-[[location(1)]] var<${dir}> vView : vec3<f32>; // Vector from vertex to camera.
-[[location(2)]] var<${dir}> vTex : vec2<f32>;
-[[location(3)]] var<${dir}> vCol : vec4<f32>;
+function PBR_VARYINGS(defines) { return `
+  [[location(0)]] vWorldPos : vec3<f32>;
+  [[location(1)]] vView : vec3<f32>; // Vector from vertex to camera.
+  [[location(2)]] vTex : vec2<f32>;
+  [[location(3)]] vCol : vec4<f32>;
+  [[location(4)]] vNorm : vec3<f32>;
 
-${defines.USE_NORMAL_MAP ? `
-[[location(4)]] var<${dir}> vTBN : mat3x3<f32>;
-` : `
-[[location(4)]] var<${dir}> vNorm : vec3<f32>;
-`}`;
+  ${defines.USE_NORMAL_MAP ? `
+  [[location(5)]] vTangent : vec3<f32>;
+  [[location(6)]] vBitangent : vec3<f32>;
+  ` : ``}
+`;
 }
 
 export function WEBGPU_VERTEX_SOURCE(defines) { return `
-[[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
-[[location(${ATTRIB_MAP.NORMAL})]] var<in> NORMAL : vec3<f32>;
-${defines.USE_NORMAL_MAP ? `
-[[location(${ATTRIB_MAP.TANGENT})]] var<in> TANGENT : vec4<f32>;
-` : ``}
-[[location(${ATTRIB_MAP.TEXCOORD_0})]] var<in> TEXCOORD_0 : vec2<f32>;
-${defines.USE_VERTEX_COLOR ? `
-[[location(${ATTRIB_MAP.COLOR_0})]] var<in> COLOR_0 : vec4<f32>;
-` : ``}
+struct VertexInput {
+  [[location(${ATTRIB_MAP.POSITION})]] POSITION : vec3<f32>;
+  [[location(${ATTRIB_MAP.NORMAL})]] NORMAL : vec3<f32>;
+  ${defines.USE_NORMAL_MAP ? `
+  [[location(${ATTRIB_MAP.TANGENT})]] TANGENT : vec4<f32>;
+  ` : ``}
+  [[location(${ATTRIB_MAP.TEXCOORD_0})]] TEXCOORD_0 : vec2<f32>;
+  ${defines.USE_VERTEX_COLOR ? `
+  [[location(${ATTRIB_MAP.COLOR_0})]] COLOR_0 : vec4<f32>;
+  ` : ``}
+};
 
 [[block]] struct FrameUniforms {
   projectionMatrix : mat4x4<f32>;
@@ -69,38 +72,37 @@ ${defines.USE_VERTEX_COLOR ? `
 };
 [[binding(0), group(${UNIFORM_BLOCKS.PrimitiveUniforms})]] var<uniform> primitive : PrimitiveUniforms;
 
-${PBR_VARYINGS(defines, 'out')}
-
-[[builtin(position)]] var<out> outPosition : vec4<f32>;
+struct VertexOutput {
+  [[builtin(position)]] position : vec4<f32>;
+  ${PBR_VARYINGS(defines)}
+};
 
 [[stage(vertex)]]
-fn main() -> void {
-  var n : vec3<f32> = normalize((primitive.modelMatrix * vec4<f32>(NORMAL, 0.0)).xyz);
+fn main(input : VertexInput) -> VertexOutput {
+  var output : VertexOutput;
+  output.vNorm = normalize((primitive.modelMatrix * vec4<f32>(input.NORMAL, 0.0)).xyz);
 ${defines.USE_NORMAL_MAP ? `
-  var t : vec3<f32> = normalize((primitive.modelMatrix * vec4<f32>(TANGENT.xyz, 0.0)).xyz);
-  var b : vec3<f32> = cross(n, t) * TANGENT.w;
-  vTBN = mat3x3<f32>(t, b, n);
-` : `
-  vNorm = n;
-`}
+  output.vTangent = normalize((primitive.modelMatrix * vec4<f32>(input.TANGENT.xyz, 0.0)).xyz);
+  output.vBitangent = cross(output.vNorm, output.vTangent) * input.TANGENT.w;
+` : ``}
 
 ${defines.USE_VERTEX_COLOR ? `
-  vCol = COLOR_0;
+  output.vCol = input.COLOR_0;
 ` : `` }
 
-  vTex = TEXCOORD_0;
-  var mPos : vec4<f32> = primitive.modelMatrix * vec4<f32>(POSITION, 1.0);
-  vWorldPos = mPos.xyz;
-  vView = frame.cameraPosition - mPos.xyz;
-  outPosition = frame.projectionMatrix * frame.viewMatrix * mPos;
-  return;
+  output.vTex = input.TEXCOORD_0;
+  var mPos : vec4<f32> = primitive.modelMatrix * vec4<f32>(input.POSITION, 1.0);
+  output.vWorldPos = mPos.xyz;
+  output.vView = frame.cameraPosition - mPos.xyz;
+  output.position = frame.projectionMatrix * frame.viewMatrix * mPos;
+  return output;
 }`;
 }
 
 // Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
 // Thanks!
 const PBR_FUNCTIONS = `
-const PI : f32 = 3.14159265359;
+let PI : f32 = 3.14159265359;
 
 fn FresnelSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
   return F0 + (vec3<f32>(1.0, 1.0, 1.0) - F0) * pow(1.0 - cosTheta, 5.0);
@@ -163,22 +165,22 @@ struct Light {
 
 [[block]] struct LightUniforms {
   lights : [[stride(32)]] array<Light, ${defines.LIGHT_COUNT}>;
-  [[offset(${defines.LIGHT_COUNT * 32})]] lightAmbient : f32;
+  lightAmbient : f32;
 };
 [[binding(0), group(${UNIFORM_BLOCKS.LightUniforms})]] var<uniform> light : LightUniforms;
 
-${PBR_VARYINGS(defines, 'in')}
+struct VertexOutput {
+  ${PBR_VARYINGS(defines)}
+};
 
-[[location(0)]] var<out> outColor : vec4<f32>;
-
-const dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
-const black : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+let dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
+let black : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
 [[stage(fragment)]]
-fn main() -> void {
+fn main(input : VertexOutput) -> [[location(0)]] vec4<f32> {
   var baseColor : vec4<f32> = material.baseColorFactor;
 ${defines.USE_BASE_COLOR_MAP ? `
-  var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, vTex);
+  var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, input.vTex);
   if (baseColorMap.a < 0.05) {
     discard;
   }
@@ -194,19 +196,20 @@ ${defines.USE_VERTEX_COLOR ? `
   var roughness : f32 = material.metallicRoughnessFactor.y;
 
 ${defines.USE_METAL_ROUGH_MAP ? `
-  var metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, vTex);
+  var metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, input.vTex);
   metallic = metallic * metallicRoughness.b;
   roughness = roughness * metallicRoughness.g;
 ` : ``}
 
 ${defines.USE_NORMAL_MAP ? `
-  var N : vec3<f32> = textureSample(normalTexture, defaultSampler, vTex).rgb;
-  N = normalize(vTBN * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
+  let tbn = mat3x3<f32>(input.vTangent, input.vBitangent, input.vNorm);
+  var N : vec3<f32> = textureSample(normalTexture, defaultSampler, input.vTex).rgb;
+  N = normalize(tbn * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
 ` : `
-  var N : vec3<f32> = normalize(vNorm);
+  var N : vec3<f32> = normalize(input.vNorm);
 `}
 
-  var V : vec3<f32> = normalize(vView);
+  var V : vec3<f32> = normalize(input.vView);
 
   var F0 : vec3<f32> = mix(dielectricSpec, albedo, vec3<f32>(metallic, metallic, metallic));
 
@@ -215,9 +218,9 @@ ${defines.USE_NORMAL_MAP ? `
 
   for (var i : i32 = 0; i < ${defines.LIGHT_COUNT}; i = i + 1) {
     // calculate per-light radiance
-    var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
+    var L : vec3<f32> = normalize(light.lights[i].position.xyz - input.vWorldPos);
     var H : vec3<f32> = normalize(V + L);
-    var distance : f32 = length(light.lights[i].position.xyz - vWorldPos);
+    var distance : f32 = length(light.lights[i].position.xyz - input.vWorldPos);
     var attenuation : f32 = 1.0 / (1.0 + distance * distance);
     var radiance : vec3<f32> = light.lights[i].color.rgb * attenuation;
 
@@ -240,7 +243,7 @@ ${defines.USE_NORMAL_MAP ? `
   }
 
 ${defines.USE_OCCLUSION ? `
-  var ao : f32 = textureSample(occlusionTexture, defaultSampler, vTex).r * material.occlusionStrength;
+  var ao : f32 = textureSample(occlusionTexture, defaultSampler, input.vTex).r * material.occlusionStrength;
 ` : `
   var ao : f32 = 1.0;
 `}
@@ -250,15 +253,14 @@ ${defines.USE_OCCLUSION ? `
 
   var emissive : vec3<f32> = material.emissiveFactor;
 ${defines.USE_EMISSIVE_TEXTURE ? `
-  emissive = emissive * textureSample(emissiveTexture, defaultSampler, vTex).rgb;
+  emissive = emissive * textureSample(emissiveTexture, defaultSampler, input.vTex).rgb;
 ` : ``}
   color = color + emissive;
 
   color = color / (color + vec3<f32>(1.0, 1.0, 1.0));
   color = pow(color, vec3<f32>(1.0/2.2, 1.0/2.2, 1.0/2.2));
 
-  outColor = vec4<f32>(color, baseColor.a);
-  return;
+  return vec4<f32>(color, baseColor.a);
 }
 `;
 }
