@@ -1,0 +1,134 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+
+    <title>WebGPU Resize Crash Bug Repro</title>
+
+    <style>
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .dg {
+        z-index: 1 !important;
+      }
+    </style>
+  </head>
+
+  <body>
+    <script type='module'>
+      const SAMPLE_COUNT = 4;
+      const DEPTH_FORMAT = 'depth24plus';
+
+      const MAX_CANVAS_WIDTH = 1024;
+      const MAX_CANVAS_HEIGHT = 1024;
+
+      export class WebGPURenderer {
+        constructor() {
+          this.canvas = document.createElement('canvas');
+          this.context = this.canvas.getContext('webgpu');
+        }
+
+        async initialize() {
+          this.adapter = await navigator.gpu.requestAdapter({
+            powerPreference: "high-performance"
+          });
+          this.device = await this.adapter.requestDevice();
+          this.contextFormat = this.context.getPreferredFormat(this.adapter);
+
+          this.colorAttachment = {
+            // view is acquired and set in onCanvasResize.
+            view: undefined,
+            // resolveTarget is acquired and set in onFrame.
+            resolveTarget: undefined,
+            loadOp: 'clear',
+            storeOp: 'store',
+            clearValue: {r: 0.0, g: 0.0, b: 0.0, a: 1.0},
+          };
+
+          this.depthAttachment = {
+            // view is acquired and set in onCanvasResize.
+            view: undefined,
+            depthLoadOp: 'clear',
+            depthStoreOp: 'store',
+            depthClearValue: 1.0,
+            stencilLoadOp: 'clear',
+            stencilStoreOp: 'store',
+          };
+
+          this.renderPassDescriptor = {
+            colorAttachments: [this.colorAttachment],
+            depthStencilAttachment: this.depthAttachment
+          };
+        }
+
+        onCanvasResize() {
+          if (!this.device) return;
+
+          const width = Math.round(this.canvas.width * devicePixelRatio);
+          const height = Math.round(this.canvas.height * devicePixelRatio);
+
+          // Context configuration
+          this.context.configure({
+            device: this.device,
+            format: this.contextFormat,
+            size: { width, height },
+          });
+
+          this.colorAttachment.clearValue.r = width / MAX_CANVAS_WIDTH;
+          this.colorAttachment.clearValue.b = height / MAX_CANVAS_HEIGHT;
+
+          const msaaColorTexture = this.device.createTexture({
+            size: { width, height },
+            sampleCount: SAMPLE_COUNT,
+            format: this.contextFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+          this.colorAttachment.view = msaaColorTexture.createView();
+
+          const depthTexture = this.device.createTexture({
+            size: { width, height },
+            sampleCount: SAMPLE_COUNT,
+            format: DEPTH_FORMAT,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT
+          });
+          this.depthAttachment.view = depthTexture.createView();
+        }
+
+        onFrame(timestamp) {
+          this.canvas.width = (Math.sin(timestamp / 1000) * 0.25 + 0.75) * MAX_CANVAS_WIDTH;
+          this.canvas.height = (Math.cos(timestamp / 1000) * 0.25 + 0.75) * MAX_CANVAS_HEIGHT;
+          this.onCanvasResize();
+
+          this.colorAttachment.resolveTarget = this.context.getCurrentTexture().createView();
+
+          const commandEncoder = this.device.createCommandEncoder({});
+
+          // Just clear the render target
+          const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
+          passEncoder.end();
+
+          this.device.queue.submit([commandEncoder.finish()]);
+        }
+      }
+
+      const renderer = new WebGPURenderer();
+      function onFrame(timestamp) {
+        window.requestAnimationFrame(onFrame);
+        renderer.onFrame(timestamp);
+      }
+
+      renderer.initialize().then(() => {
+        document.body.appendChild(renderer.canvas);
+        window.requestAnimationFrame(onFrame);
+      });
+    </script>
+  </body>
+</html>
