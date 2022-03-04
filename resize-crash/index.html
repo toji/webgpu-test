@@ -26,11 +26,19 @@
 
   <body>
     <script type='module'>
-      const SAMPLE_COUNT = 4;
+      import {QueryArgs} from './query-args.js';
+
+      const USE_MSAA = QueryArgs.getBool("msaa", true);
+      const USE_DEPTH = QueryArgs.getBool("depth", true);
+
+      const SAMPLE_COUNT = USE_MSAA ? 4 : 1;
       const DEPTH_FORMAT = 'depth24plus';
 
-      const MAX_CANVAS_WIDTH = 1024;
-      const MAX_CANVAS_HEIGHT = 1024;
+      const MAX_CANVAS_WIDTH = QueryArgs.getInt("maxCanvasSize", 512);
+      const MAX_CANVAS_HEIGHT = QueryArgs.getInt("maxCanvasSize", 512);
+
+      const MAX_TARGET_WIDTH = QueryArgs.getInt("maxSize", 2048);
+      const MAX_TARGET_HEIGHT = QueryArgs.getInt("maxSize", 2048);
 
       export class WebGPURenderer {
         constructor() {
@@ -39,6 +47,13 @@
         }
 
         async initialize() {
+          console.log('Running test with query args:', {
+            msaa: USE_MSAA,
+            depth: USE_DEPTH,
+            maxSize: MAX_TARGET_WIDTH,
+            maxCanvasSize: MAX_CANVAS_WIDTH,
+          });
+
           this.adapter = await navigator.gpu.requestAdapter({
             powerPreference: "high-performance"
           });
@@ -55,15 +70,19 @@
             clearValue: {r: 0.0, g: 0.0, b: 0.0, a: 1.0},
           };
 
-          this.depthAttachment = {
-            // view is acquired and set in onCanvasResize.
-            view: undefined,
-            depthLoadOp: 'clear',
-            depthStoreOp: 'store',
-            depthClearValue: 1.0,
-            stencilLoadOp: 'clear',
-            stencilStoreOp: 'store',
-          };
+          if (USE_DEPTH) {
+            this.depthAttachment = {
+              // view is acquired and set in onCanvasResize.
+              view: undefined,
+              depthLoadOp: 'clear',
+              depthStoreOp: 'store',
+              depthClearValue: 1.0,
+              stencilLoadOp: 'clear',
+              stencilStoreOp: 'store',
+            };
+          } else {
+            this.depthAttachment = undefined;
+          }
 
           this.renderPassDescriptor = {
             colorAttachments: [this.colorAttachment],
@@ -74,8 +93,8 @@
         onCanvasResize() {
           if (!this.device) return;
 
-          const width = Math.round(this.canvas.width * devicePixelRatio);
-          const height = Math.round(this.canvas.height * devicePixelRatio);
+          const width = (this.canvas.width / MAX_CANVAS_WIDTH) * MAX_TARGET_WIDTH;
+          const height = (this.canvas.height / MAX_CANVAS_HEIGHT) * MAX_TARGET_HEIGHT;
 
           // Context configuration
           this.context.configure({
@@ -84,24 +103,28 @@
             size: { width, height },
           });
 
-          this.colorAttachment.clearValue.r = width / MAX_CANVAS_WIDTH;
-          this.colorAttachment.clearValue.b = height / MAX_CANVAS_HEIGHT;
+          this.colorAttachment.clearValue.r = width / MAX_TARGET_WIDTH;
+          this.colorAttachment.clearValue.b = height / MAX_TARGET_HEIGHT;
 
-          const msaaColorTexture = this.device.createTexture({
-            size: { width, height },
-            sampleCount: SAMPLE_COUNT,
-            format: this.contextFormat,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT,
-          });
-          this.colorAttachment.view = msaaColorTexture.createView();
+          if (USE_MSAA) {
+            const msaaColorTexture = this.device.createTexture({
+              size: { width, height },
+              sampleCount: SAMPLE_COUNT,
+              format: this.contextFormat,
+              usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+            this.colorAttachment.view = msaaColorTexture.createView();
+          }
 
-          const depthTexture = this.device.createTexture({
-            size: { width, height },
-            sampleCount: SAMPLE_COUNT,
-            format: DEPTH_FORMAT,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT
-          });
-          this.depthAttachment.view = depthTexture.createView();
+          if (USE_DEPTH) {
+            const depthTexture = this.device.createTexture({
+              size: { width, height },
+              sampleCount: SAMPLE_COUNT,
+              format: DEPTH_FORMAT,
+              usage: GPUTextureUsage.RENDER_ATTACHMENT
+            });
+            this.depthAttachment.view = depthTexture.createView();
+          }
         }
 
         onFrame(timestamp) {
@@ -109,7 +132,11 @@
           this.canvas.height = (Math.cos(timestamp / 1000) * 0.25 + 0.75) * MAX_CANVAS_HEIGHT;
           this.onCanvasResize();
 
-          this.colorAttachment.resolveTarget = this.context.getCurrentTexture().createView();
+          if (USE_MSAA) {
+            this.colorAttachment.resolveTarget = this.context.getCurrentTexture().createView();
+          } else {
+            this.colorAttachment.view = this.context.getCurrentTexture().createView();
+          }
 
           const commandEncoder = this.device.createCommandEncoder({});
 
