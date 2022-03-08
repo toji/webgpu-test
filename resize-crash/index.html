@@ -30,6 +30,7 @@
 
       const USE_MSAA = QueryArgs.getBool("msaa", true);
       const USE_DEPTH = QueryArgs.getBool("depth", true);
+      const USE_DESTROY = QueryArgs.getBool("destroy", false);
 
       const SAMPLE_COUNT = USE_MSAA ? 4 : 1;
       const DEPTH_FORMAT = 'depth24plus';
@@ -41,6 +42,8 @@
       const MAX_TARGET_HEIGHT = QueryArgs.getInt("maxSize", 2048);
 
       export class WebGPURenderer {
+        frameNum = 0;
+
         constructor() {
           this.canvas = document.createElement('canvas');
           this.context = this.canvas.getContext('webgpu');
@@ -52,6 +55,7 @@
             depth: USE_DEPTH,
             maxSize: MAX_TARGET_WIDTH,
             maxCanvasSize: MAX_CANVAS_WIDTH,
+            destroy: USE_DESTROY,
           });
 
           this.adapter = await navigator.gpu.requestAdapter({
@@ -88,6 +92,9 @@
             colorAttachments: [this.colorAttachment],
             depthStencilAttachment: this.depthAttachment
           };
+
+          this.msaaTexture = null;
+          this.depthTexture = null;
         }
 
         onCanvasResize() {
@@ -107,30 +114,41 @@
           this.colorAttachment.clearValue.b = height / MAX_TARGET_HEIGHT;
 
           if (USE_MSAA) {
-            const msaaColorTexture = this.device.createTexture({
+            if (this.msaaTexture && USE_DESTROY) {
+              this.msaaTexture.destroy();
+            }
+
+            this.msaaTexture = this.device.createTexture({
               size: { width, height },
               sampleCount: SAMPLE_COUNT,
               format: this.contextFormat,
               usage: GPUTextureUsage.RENDER_ATTACHMENT,
             });
-            this.colorAttachment.view = msaaColorTexture.createView();
+            this.colorAttachment.view = this.msaaTexture.createView();
           }
 
           if (USE_DEPTH) {
-            const depthTexture = this.device.createTexture({
+            if (this.depthTexture && USE_DESTROY) {
+              this.depthTexture.destroy();
+            }
+
+            this.depthTexture = this.device.createTexture({
               size: { width, height },
               sampleCount: SAMPLE_COUNT,
               format: DEPTH_FORMAT,
-              usage: GPUTextureUsage.RENDER_ATTACHMENT
+              usage: GPUTextureUsage.RENDER_ATTACHMENT,
             });
-            this.depthAttachment.view = depthTexture.createView();
+            this.depthAttachment.view = this.depthTexture.createView();
           }
         }
 
         onFrame(timestamp) {
           this.canvas.width = (Math.sin(timestamp / 1000) * 0.25 + 0.75) * MAX_CANVAS_WIDTH;
           this.canvas.height = (Math.cos(timestamp / 1000) * 0.25 + 0.75) * MAX_CANVAS_HEIGHT;
-          this.onCanvasResize();
+          if (this.frameNum % 10 == 0) {
+            this.onCanvasResize();
+          }
+          this.frameNum++;
 
           if (USE_MSAA) {
             this.colorAttachment.resolveTarget = this.context.getCurrentTexture().createView();
