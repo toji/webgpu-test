@@ -31,6 +31,7 @@
       const USE_MSAA = QueryArgs.getBool("msaa", true);
       const USE_DEPTH = QueryArgs.getBool("depth", true);
       const USE_DESTROY = QueryArgs.getBool("destroy", false);
+      const OFFSCREEN_TARGET = QueryArgs.getBool("offscreenTarget", false);
 
       const SAMPLE_COUNT = USE_MSAA ? 4 : 1;
       const DEPTH_FORMAT = 'depth24plus';
@@ -56,6 +57,7 @@
             maxSize: MAX_TARGET_WIDTH,
             maxCanvasSize: MAX_CANVAS_WIDTH,
             destroy: USE_DESTROY,
+            offscreenTarget: OFFSCREEN_TARGET,
           });
 
           this.adapter = await navigator.gpu.requestAdapter({
@@ -103,15 +105,29 @@
           const width = (this.canvas.width / MAX_CANVAS_WIDTH) * MAX_TARGET_WIDTH;
           const height = (this.canvas.height / MAX_CANVAS_HEIGHT) * MAX_TARGET_HEIGHT;
 
-          // Context configuration
-          this.context.configure({
-            device: this.device,
-            format: this.contextFormat,
-            size: { width, height },
-          });
-
           this.colorAttachment.clearValue.r = width / MAX_TARGET_WIDTH;
           this.colorAttachment.clearValue.b = height / MAX_TARGET_HEIGHT;
+
+          if (OFFSCREEN_TARGET) {
+            if (this.offscreenTarget && USE_DESTROY) {
+              this.offscreenTarget.destroy();
+            }
+
+            this.offscreenTarget = this.device.createTexture({
+              size: { width, height },
+              sampleCount: 1,
+              format: this.contextFormat,
+              usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+            this.colorAttachment.resolveTarget = this.offscreenTarget.createView();
+          } else {
+            // Context configuration
+            this.context.configure({
+              device: this.device,
+              format: this.contextFormat,
+              size: { width, height },
+            });
+          }
 
           if (USE_MSAA) {
             if (this.msaaTexture && USE_DESTROY) {
@@ -150,10 +166,12 @@
           }
           this.frameNum++;
 
-          if (USE_MSAA) {
-            this.colorAttachment.resolveTarget = this.context.getCurrentTexture().createView();
-          } else {
-            this.colorAttachment.view = this.context.getCurrentTexture().createView();
+          if (!OFFSCREEN_TARGET) {
+            if (USE_MSAA) {
+              this.colorAttachment.resolveTarget = this.context.getCurrentTexture().createView();
+            } else {
+              this.colorAttachment.view = this.context.getCurrentTexture().createView();
+            }
           }
 
           const commandEncoder = this.device.createCommandEncoder({});
