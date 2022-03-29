@@ -83,8 +83,6 @@
               depthLoadOp: 'clear',
               depthStoreOp: 'store',
               depthClearValue: 1.0,
-              stencilLoadOp: 'clear',
-              stencilStoreOp: 'store',
             };
           } else {
             this.depthAttachment = undefined;
@@ -126,6 +124,7 @@
               device: this.device,
               format: this.contextFormat,
               size: { width, height },
+              compositingAlphaMode: 'opaque',
             });
           }
 
