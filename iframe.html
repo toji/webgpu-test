@@ -20,19 +20,26 @@
         position: absolute;
         top: 1em;
         bottom: 1em;
-        left: 1em;
-        right: 1em;
+        left: 0.5em;
+        right: 0.5em;
+        display: flex;
       }
       iframe {
-        width: 100%;
-        height: 100%;
-        margin: 0px;
+        margin-left: 0.5em;
+        margin-right: 0.5em;
+      }
+      #same-origin {
+        flex-grow: 1;
+      }
+      #cross-origin {
+        flex-grow: 2;
       }
     </style>
   </head>
   <body>
     <div id="container">
-      <iframe src="cube.html"></iframe>
+      <iframe id="same-origin" src="cube.html"></iframe>
+      <iframe id="cross-origin" src="https://austin-eng.com/webgpu-samples/samples/helloTriangle"></iframe>
     </div>
   </body>
 </html>
