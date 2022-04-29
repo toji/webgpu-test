@@ -15,6 +15,9 @@
         margin: 0;
         background-color: #000066;
       }
+      canvas {
+        margin: 1em;
+      }
     </style>
   </head>
   <body>
@@ -29,22 +32,22 @@
       const uniformBufferSize = 4 * 16; // 4x4 matrix
 
       const shaderSrc = `
-        [[block]] struct Uniforms {
-          modelViewProjectionMatrix : mat4x4<f32>;
+        struct Uniforms {
+          modelViewProjectionMatrix : mat4x4<f32>
         };
-        [[group(0), binding(0)]] var<uniform> uniforms : Uniforms;
-        
+        @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+
         struct VertexInput {
-          [[location(0)]] position : vec4<f32>;
-          [[location(1)]] color : vec4<f32>;
+          @location(0) position : vec4<f32>,
+          @location(1) color : vec4<f32>,
         };
 
         struct VertexOutput {
-          [[location(0)]] color : vec4<f32>;
-          [[builtin(position)]] position : vec4<f32>;
+          @location(0) color : vec4<f32>,
+          @builtin(position) position : vec4<f32>,
         };
 
-        [[stage(vertex)]]
+        @stage(vertex)
         fn vertMain(input : VertexInput) -> VertexOutput {
           var output : VertexOutput;
           output.color = input.color;
@@ -52,8 +55,8 @@
           return output;
         }
 
-        [[stage(fragment)]]
-        fn fragMain([[location(0)]] color : vec4<f32>) -> [[location(0)]] vec4<f32> {
+        @stage(fragment)
+        fn fragMain(@location(0) color : vec4<f32>) -> @location(0) vec4<f32> {
           return color;
         }
       `;
@@ -160,7 +163,8 @@
         context.configure({
           device,
           format: contextFormat,
-          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+          compositingAlphaMode: 'opaque'
         });
 
         // Quick patch for Firefox/Chrome compat difference
@@ -208,17 +212,17 @@
             view: undefined,
             resolveTarget: undefined,
 
-            loadValue: { r: 0.0, g: 0.5, b: 0.0, a: 1.0 },
+            clearValue: { r: 0.0, g: 0.5, b: 0.0, a: 1.0 },
+            loadOp: 'clear',
             storeOp: 'store'
           }],
           depthStencilAttachment: {
             // view is acquired and set in render loop.
             view: undefined,
 
-            depthLoadValue: 1.0,
+            depthClearValue: 1.0,
+            depthLoadOp: 'clear',
             depthStoreOp: 'store',
-            stencilLoadValue: 0,
-            stencilStoreOp: 'store',
           }
         };
 
@@ -241,7 +245,8 @@
           context.configure({
             device,
             format: contextFormat,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+            compositingAlphaMode: 'opaque'
           });
 
           colorTexture = device.createTexture({
@@ -348,7 +353,7 @@
         passEncoder.setBindGroup(0, uniformBindGroup);
         passEncoder.setVertexBuffer(0, vertexBuffer);
         passEncoder.draw(Cube.vertexCount, 1, 0, 0);
-        passEncoder.endPass();
+        passEncoder.end();
 
         device.queue.submit([commandEncoder.finish()]);
 
