@@ -44,12 +44,12 @@
           var<private> pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
             vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
           );
-          [[builtin(position)]] var<out> Position : vec4<f32>;
-          [[builtin(vertex_index)]] var<in> VertexIndex : i32;
+          @builtin(position) var<out> Position : vec4<f32>;
+          @builtin(vertex_index) var<in> VertexIndex : i32;
 
-          [[location(0)]] var<out> vPos : vec2<f32>;
+          @location(0) var<out> vPos : vec2<f32>;
 
-          [[stage(vertex)]]
+          @stage(vertex)
           fn main() -> void {
             vPos = pos[VertexIndex];
             Position = vec4<f32>(vPos, 0.0, 1.0);
@@ -57,9 +57,9 @@
           }
         `,
         fragment: `
-          [[location(0)]] var<out> outColor : vec4<f32>;
-          [[stage(fragment)]]
-          fn main([[location(0)]] vPos : vec2<f32>) -> void {
+          @location(0) var<out> outColor : vec4<f32>;
+          @stage(fragment)
+          fn main(@location(0) vPos : vec2<f32>) -> void {
             outColor = vec4<f32>((vPos.x + 1.0) / 2.0, (vPos.y + 1.0) / 2.0, 0.0, 1.0);
             return;
           }
@@ -72,18 +72,18 @@
             vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0)
           );
 
-          [[builtin(position)]] var<out> Position : vec4<f32>;
-          [[builtin(vertex_index)]] var<in> VertexIndex : i32;
+          @builtin(position) var<out> Position : vec4<f32>;
+          @builtin(vertex_index) var<in> VertexIndex : i32;
 
-          [[location(0)]] var<out> vPos : vec2<f32>;
+          @location(0) var<out> vPos : vec2<f32>;
 
-          [[block]] struct FrameUniforms {
+          struct FrameUniforms {
             projectionMatrix : mat4x4<f32>;
             tileMatrix : mat4x4<f32>;
           };
-          [[group(0), binding(0)]] var<uniform> frameUniforms : FrameUniforms;
+          @group(0) @binding(0) var<uniform> frameUniforms : FrameUniforms;
 
-          [[stage(vertex)]]
+          @stage(vertex)
           fn main() -> void {
             vPos = pos[VertexIndex];
             Position = frameUniforms.projectionMatrix * frameUniforms.tileMatrix * vec4<f32>(vPos, 0.0, 1.0);
@@ -92,9 +92,9 @@
         `,
 
         fragment: `
-          [[location(0)]] var<out> outColor : vec4<f32>;
-          [[stage(fragment)]]
-          fn main([[location(0)]] vPos : vec2<f32>) -> void {
+          @location(0) var<out> outColor : vec4<f32>;
+          @stage(fragment)
+          fn main(@location(0) vPos : vec2<f32>) -> void {
             outColor = vec4<f32>(0.0, (vPos.x + 1.0) / 2.0, (vPos.y + 1.0) / 2.0, 1.0);
             return;
           }
@@ -127,16 +127,17 @@
             view: undefined,
             // resolveTarget is acquired and set in onFrame.
             resolveTarget: undefined,
-            loadValue: {r: 0.0, g: 0.0, b: 0.0, a: 1.0},
+            clearValue: {r: 0.0, g: 0.0, b: 0.0, a: 1.0},
+            loadOp: 'clear',
+            storeOp: 'store',
           };
 
           this.depthAttachment = {
             // view is acquired and set in onCanvasResize.
             view: undefined,
-            depthLoadValue: 1.0,
+            depthClearValue: 1.0,
+            depthLoadOp: 'clear',
             depthStoreOp: 'store',
-            stencilLoadValue: 0,
-            stencilStoreOp: 'store',
           };
 
           this.renderPassDescriptor = {
@@ -303,7 +304,7 @@
           passEncoder.setBindGroup(0, this.frameUniformBindGroup);
           passEncoder.draw(4, undefined, 0, 0);
 
-          passEncoder.endPass();
+          passEncoder.end();
           this.device.queue.submit([commandEncoder.finish()]);
         }
       }

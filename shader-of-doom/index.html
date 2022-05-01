@@ -401,7 +401,7 @@ const MarchingCubesComputeSource = `
       valueAt(index - vec3<u32>(0u, 0u, 1u)) - valueAt(index + vec3<u32>(0u, 0u, 1u))
     );
   }
-  
+
   // Vertex interpolation
   var<private> positions : array<vec3<f32>, 12>;
   var<private> normals : array<vec3<f32>, 12>;
@@ -544,11 +544,12 @@ async function initWebGPU() {
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [{
         view: swapChain.getCurrentTexture().createView(),
-        loadValue: {r: 0.0, g: 1.0, b: 0.0, a: 1.0},
-        storeOp: 'store'
+        clearValue: {r: 0.0, g: 1.0, b: 0.0, a: 1.0},
+        loadOp: 'clear',
+        storeOp: 'store',
       }]
     });
-    passEncoder.endPass();
+    passEncoder.end();
     device.queue.submit([commandEncoder.finish()]);
   }
   window.requestAnimationFrame(onFrame);

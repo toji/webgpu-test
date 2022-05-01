@@ -112,32 +112,32 @@ const LightSprite = {
     vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
   );
 
-  [[block]] struct FrameUniforms {
-    projectionMatrix : mat4x4<f32>;
-    viewMatrix : mat4x4<f32>;
-    cameraPosition : vec3<f32>;
+  struct FrameUniforms {
+    projectionMatrix : mat4x4<f32>,
+    viewMatrix : mat4x4<f32>,
+    cameraPosition : vec3<f32>,
   };
-  [[binding(0), group(0)]] var<uniform> frame : FrameUniforms;
+  @binding(0) @group(0) var<uniform> frame : FrameUniforms;
 
   struct Light {
-    position : vec3<f32>;
-    color : vec3<f32>;
+    position : vec3<f32>,
+    color : vec3<f32>,
   };
 
-  [[block]] struct LightUniforms {
-    lights : [[stride(32)]] array<Light, 5>;
-    lightAmbient : f32;
+  struct LightUniforms {
+    lights : array<Light, 5>,
+    lightAmbient : f32,
   };
-  [[binding(1), group(0)]] var<uniform> light : LightUniforms;
+  @binding(1) @group(0) var<uniform> light : LightUniforms;
 
   struct VertexOutput {
-    [[builtin(position)]] position : vec4<f32>;
-    [[location(0)]] vPos : vec2<f32>;
-    [[location(1)]] vColor : vec3<f32>;
+    @builtin(position) position : vec4<f32>,
+    @location(0) vPos : vec2<f32>,
+    @location(1) vColor : vec3<f32>,
   };
 
-  [[stage(vertex)]]
-  fn main([[builtin(vertex_index)]] vertexIndex : u32, [[builtin(instance_index)]] instanceIndex : u32) -> VertexOutput {
+  @stage(vertex)
+  fn main(@builtin(vertex_index) vertexIndex : u32, @builtin(instance_index) instanceIndex : u32) -> VertexOutput {
     let lightSize : f32 = 0.2;
 
     var output : VertexOutput;
@@ -168,12 +168,12 @@ const LightSprite = {
 
   fragmentSource: `
   struct VertexOutput {
-    [[location(0)]] vPos : vec2<f32>;
-    [[location(1)]] vColor : vec3<f32>;
+    @location(0) vPos : vec2<f32>,
+    @location(1) vColor : vec3<f32>,
   };
 
-  [[stage(fragment)]]
-  fn main(input : VertexOutput) -> [[location(0)]] vec4<f32> {
+  @stage(fragment)
+  fn main(input : VertexOutput) -> @location(0) vec4<f32> {
     let distToCenter : f32 = length(input.vPos);
     let fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
     return vec4<f32>(input.vColor * fade, fade);
@@ -208,17 +208,17 @@ export class WebGPURenderer extends Renderer {
       view: undefined,
       // resolveTarget is acquired and set in onFrame.
       resolveTarget: undefined,
-      loadValue: { r: 0.0, g: 0.0, b: 0.5, a: 1.0 },
+      clearValue: { r: 0.0, g: 0.0, b: 0.5, a: 1.0 },
+      loadOp: 'clear',
       storeOp: 'store',
     };
 
     this.depthAttachment = {
       // view is acquired and set in onResize.
       view: undefined,
-      depthLoadValue: 1.0,
+      depthClearValue: 1.0,
+      depthLoadOp: 'clear',
       depthStoreOp: 'store',
-      stencilLoadValue: 0,
-      stencilStoreOp: 'store',
     };
 
     this.renderPassDescriptor = {
@@ -409,7 +409,8 @@ export class WebGPURenderer extends Renderer {
     this.context.configure({
       device: this.device,
       format: this.contextFormat,
-      size: {width, height}
+      size: {width, height},
+      compositingAlphaMode: 'opaque',
     });
 
     const msaaColorTexture = this.device.createTexture({
@@ -903,7 +904,7 @@ export class WebGPURenderer extends Renderer {
       passEncoder.executeBundles([this.renderBundle]);
     }
 
-    passEncoder.endPass();
+    passEncoder.end();
     this.device.queue.submit([commandEncoder.finish()]);
   }
 

@@ -34,50 +34,50 @@ export const UNIFORM_BLOCKS = {
 };
 
 function PBR_VARYINGS(defines) { return `
-  [[location(0)]] vWorldPos : vec3<f32>;
-  [[location(1)]] vView : vec3<f32>; // Vector from vertex to camera.
-  [[location(2)]] vTex : vec2<f32>;
-  [[location(3)]] vCol : vec4<f32>;
-  [[location(4)]] vNorm : vec3<f32>;
+  @location(0) vWorldPos : vec3<f32>,
+  @location(1) vView : vec3<f32>, // Vector from vertex to camera.
+  @location(2) vTex : vec2<f32>,
+  @location(3) vCol : vec4<f32>,
+  @location(4) vNorm : vec3<f32>,
 
   ${defines.USE_NORMAL_MAP ? `
-  [[location(5)]] vTangent : vec3<f32>;
-  [[location(6)]] vBitangent : vec3<f32>;
+  @location(5) vTangent : vec3<f32>,
+  @location(6) vBitangent : vec3<f32>,
   ` : ``}
 `;
 }
 
 export function WEBGPU_VERTEX_SOURCE(defines) { return `
 struct VertexInput {
-  [[location(${ATTRIB_MAP.POSITION})]] POSITION : vec3<f32>;
-  [[location(${ATTRIB_MAP.NORMAL})]] NORMAL : vec3<f32>;
+  @location(${ATTRIB_MAP.POSITION}) POSITION : vec3<f32>,
+  @location(${ATTRIB_MAP.NORMAL}) NORMAL : vec3<f32>,
   ${defines.USE_NORMAL_MAP ? `
-  [[location(${ATTRIB_MAP.TANGENT})]] TANGENT : vec4<f32>;
+  @location(${ATTRIB_MAP.TANGENT}) TANGENT : vec4<f32>,
   ` : ``}
-  [[location(${ATTRIB_MAP.TEXCOORD_0})]] TEXCOORD_0 : vec2<f32>;
+  @location(${ATTRIB_MAP.TEXCOORD_0}) TEXCOORD_0 : vec2<f32>,
   ${defines.USE_VERTEX_COLOR ? `
-  [[location(${ATTRIB_MAP.COLOR_0})]] COLOR_0 : vec4<f32>;
+  @location(${ATTRIB_MAP.COLOR_0}) COLOR_0 : vec4<f32>,
   ` : ``}
 };
 
-[[block]] struct FrameUniforms {
-  projectionMatrix : mat4x4<f32>;
-  viewMatrix : mat4x4<f32>;
-  cameraPosition : vec3<f32>;
+struct FrameUniforms {
+  projectionMatrix : mat4x4<f32>,
+  viewMatrix : mat4x4<f32>,
+  cameraPosition : vec3<f32>,
 };
-[[binding(0), group(${UNIFORM_BLOCKS.FrameUniforms})]] var<uniform> frame : FrameUniforms;
+@binding(0) @group(${UNIFORM_BLOCKS.FrameUniforms}) var<uniform> frame : FrameUniforms;
 
-[[block]] struct PrimitiveUniforms {
-  modelMatrix : mat4x4<f32>;
+struct PrimitiveUniforms {
+  modelMatrix : mat4x4<f32>
 };
-[[binding(0), group(${UNIFORM_BLOCKS.PrimitiveUniforms})]] var<uniform> primitive : PrimitiveUniforms;
+@binding(0) @group(${UNIFORM_BLOCKS.PrimitiveUniforms}) var<uniform> primitive : PrimitiveUniforms;
 
 struct VertexOutput {
-  [[builtin(position)]] position : vec4<f32>;
+  @builtin(position) position : vec4<f32>,
   ${PBR_VARYINGS(defines)}
 };
 
-[[stage(vertex)]]
+@stage(vertex)
 fn main(input : VertexInput) -> VertexOutput {
   var output : VertexOutput;
   output.vNorm = normalize((primitive.modelMatrix * vec4<f32>(input.NORMAL, 0.0)).xyz);
@@ -143,31 +143,31 @@ fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -
 export function WEBGPU_FRAGMENT_SOURCE(defines) { return `
 ${PBR_FUNCTIONS}
 
-[[block]] struct MaterialUniforms {
-  baseColorFactor : vec4<f32>;
-  metallicRoughnessFactor : vec2<f32>;
-  emissiveFactor : vec3<f32>;
-  occlusionStrength : f32;
+struct MaterialUniforms {
+  baseColorFactor : vec4<f32>,
+  metallicRoughnessFactor : vec2<f32>,
+  emissiveFactor : vec3<f32>,
+  occlusionStrength : f32,
 };
-[[binding(0), group(${UNIFORM_BLOCKS.MaterialUniforms})]] var<uniform> material : MaterialUniforms;
+@binding(0) @group(${UNIFORM_BLOCKS.MaterialUniforms}) var<uniform> material : MaterialUniforms;
 
-[[group(1), binding(1)]] var defaultSampler : sampler;
-[[group(1), binding(2)]] var baseColorTexture : texture_2d<f32>;
-[[group(1), binding(3)]] var normalTexture : texture_2d<f32>;
-[[group(1), binding(4)]] var metallicRoughnessTexture : texture_2d<f32>;
-[[group(1), binding(5)]] var occlusionTexture : texture_2d<f32>;
-[[group(1), binding(6)]] var emissiveTexture : texture_2d<f32>;
+@group(1) @binding(1) var defaultSampler : sampler;
+@group(1) @binding(2) var baseColorTexture : texture_2d<f32>;
+@group(1) @binding(3) var normalTexture : texture_2d<f32>;
+@group(1) @binding(4) var metallicRoughnessTexture : texture_2d<f32>;
+@group(1) @binding(5) var occlusionTexture : texture_2d<f32>;
+@group(1) @binding(6) var emissiveTexture : texture_2d<f32>;
 
 struct Light {
-  position : vec3<f32>;
-  color : vec3<f32>;
+  position : vec3<f32>,
+  color : vec3<f32>,
 };
 
-[[block]] struct LightUniforms {
-  lights : [[stride(32)]] array<Light, ${defines.LIGHT_COUNT}>;
-  lightAmbient : f32;
+struct LightUniforms {
+  lights : array<Light, ${defines.LIGHT_COUNT}>,
+  lightAmbient : f32,
 };
-[[binding(0), group(${UNIFORM_BLOCKS.LightUniforms})]] var<uniform> light : LightUniforms;
+@binding(0) @group(${UNIFORM_BLOCKS.LightUniforms}) var<uniform> light : LightUniforms;
 
 struct VertexOutput {
   ${PBR_VARYINGS(defines)}
@@ -176,8 +176,8 @@ struct VertexOutput {
 let dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
 let black : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
-[[stage(fragment)]]
-fn main(input : VertexOutput) -> [[location(0)]] vec4<f32> {
+@stage(fragment)
+fn main(input : VertexOutput) -> @location(0) vec4<f32> {
   var baseColor : vec4<f32> = material.baseColorFactor;
 ${defines.USE_BASE_COLOR_MAP ? `
   var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, input.vTex);

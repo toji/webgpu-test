@@ -28,23 +28,23 @@ export class GPUTextureHelper {
           vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0, 3.0), vec2<f32>(3.0, -1.0));
 
         struct VertexOutput {
-          [[builtin(position)]] position : vec4<f32>;
-          [[location(0)]] texCoord : vec2<f32>;
+          @builtin(position) position : vec4<f32>,
+          @location(0) texCoord : vec2<f32>,
         };
 
-        [[stage(vertex)]]
-        fn vertexMain([[builtin(vertex_index)]] vertexIndex : u32) -> VertexOutput {
+        @stage(vertex)
+        fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
           var output : VertexOutput;
           output.texCoord = pos[vertexIndex] * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5);
           output.position = vec4<f32>(pos[vertexIndex], 0.0, 1.0);
           return output;
         }
 
-        [[binding(0), group(0)]] var imgSampler : sampler;
-        [[binding(1), group(0)]] var img : texture_2d<f32>;
+        @binding(0) @group(0) var imgSampler : sampler;
+        @binding(1) @group(0) var img : texture_2d<f32>;
 
-        [[stage(fragment)]]
-        fn fragmentMain([[location(0)]] texCoord : vec2<f32>) -> [[location(0)]] vec4<f32> {
+        @stage(fragment)
+        fn fragmentMain(@location(0) texCoord : vec2<f32>) -> @location(0) vec4<f32> {
           return textureSample(img, imgSampler, texCoord);
         }
       `,
@@ -111,13 +111,14 @@ export class GPUTextureHelper {
             baseMipLevel: i,
             mipLevelCount: 1
           }),
-          loadValue: 'load',
+          loadOp: 'load',
+          storeOp: 'store',
         }],
       });
       passEncoder.setPipeline(this.mipmapPipeline);
       passEncoder.setBindGroup(0, bindGroup);
       passEncoder.draw(3);
-      passEncoder.endPass();
+      passEncoder.end();
 
       textureSize.width = Math.ceil(textureSize.width / 2);
       textureSize.height = Math.ceil(textureSize.height / 2);

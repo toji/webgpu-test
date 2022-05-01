@@ -84,13 +84,15 @@
           colorAttachments: [{
             // attachment is acquired and set in render loop.
             attachment: swapChain.getCurrentTexture().createView(),
-            loadValue: { r: 1.0, g: 0.5, b: 0.0, a: 1.0 },
+            clearValue: { r: 1.0, g: 0.5, b: 0.0, a: 1.0 },
+            loadOp: 'clear',
+            storeOp: 'store',
           }]
         });
 
         passEncoder.setPipeline(pipeline);
         passEncoder.draw(4, 1, 0, 0);
-        passEncoder.endPass();
+        passEncoder.end();
 
         device.defaultQueue.submit([commandEncoder.finish()]);
       }
