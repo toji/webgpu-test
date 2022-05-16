@@ -201,7 +201,12 @@ export class WebGPURenderer extends Renderer {
     });
     this.device = await this.adapter.requestDevice();
 
-    this.contextFormat = this.context.getPreferredFormat(this.adapter);
+    this.contextFormat = 'bgra8unorm';
+    if (navigator.gpu.getPreferredCanvasFormat) {
+      this.contextFormat = navigator.gpu.getPreferredCanvasFormat();
+    } else if (this.context.getPreferredFormat) {
+      this.contextFormat = this.context.getPreferredFormat(this.adapter);
+    }
 
     this.colorAttachment = {
       // view is acquired and set in onResize.

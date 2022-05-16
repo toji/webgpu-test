@@ -181,9 +181,6 @@ fn main(input : VertexOutput) -> @location(0) vec4<f32> {
   var baseColor : vec4<f32> = material.baseColorFactor;
 ${defines.USE_BASE_COLOR_MAP ? `
   var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, input.vTex);
-  if (baseColorMap.a < 0.05) {
-    discard;
-  }
   baseColor = baseColor * baseColorMap;
 ` : ``}
 ${defines.USE_VERTEX_COLOR ? `
@@ -208,6 +205,21 @@ ${defines.USE_NORMAL_MAP ? `
 ` : `
   var N : vec3<f32> = normalize(input.vNorm);
 `}
+
+${defines.USE_OCCLUSION ? `
+  var ao : f32 = textureSample(occlusionTexture, defaultSampler, input.vTex).r * material.occlusionStrength;
+` : `
+  var ao : f32 = 1.0;
+`}
+
+  var emissive : vec3<f32> = material.emissiveFactor;
+${defines.USE_EMISSIVE_TEXTURE ? `
+  emissive = emissive * textureSample(emissiveTexture, defaultSampler, input.vTex).rgb;
+` : ``}
+
+  if (baseColorMap.a < 0.05) {
+    discard;
+  }
 
   var V : vec3<f32> = normalize(input.vView);
 
@@ -242,19 +254,9 @@ ${defines.USE_NORMAL_MAP ? `
     Lo = Lo + (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
   }
 
-${defines.USE_OCCLUSION ? `
-  var ao : f32 = textureSample(occlusionTexture, defaultSampler, input.vTex).r * material.occlusionStrength;
-` : `
-  var ao : f32 = 1.0;
-`}
-
   var ambient : vec3<f32> = light.lightAmbient * albedo * ao;
   var color : vec3<f32> = ambient + Lo;
 
-  var emissive : vec3<f32> = material.emissiveFactor;
-${defines.USE_EMISSIVE_TEXTURE ? `
-  emissive = emissive * textureSample(emissiveTexture, defaultSampler, input.vTex).rgb;
-` : ``}
   color = color + emissive;
 
   color = color / (color + vec3<f32>(1.0, 1.0, 1.0));

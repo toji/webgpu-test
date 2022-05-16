@@ -53,6 +53,7 @@ export class GPUTextureHelper {
     this.mipmapSampler = device.createSampler({ minFilter: 'linear' });
 
     this.mipmapPipeline = device.createRenderPipeline({
+      layout: 'auto',
       vertex: {
         module: mipmapShaderModule,
         entryPoint: 'vertexMain',
