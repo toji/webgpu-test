@@ -136,7 +136,7 @@ const LightSprite = {
     @location(1) vColor : vec3<f32>,
   };
 
-  @stage(vertex)
+  @vertex
   fn main(@builtin(vertex_index) vertexIndex : u32, @builtin(instance_index) instanceIndex : u32) -> VertexOutput {
     let lightSize : f32 = 0.2;
 
@@ -172,7 +172,7 @@ const LightSprite = {
     @location(1) vColor : vec3<f32>,
   };
 
-  @stage(fragment)
+  @fragment
   fn main(input : VertexOutput) -> @location(0) vec4<f32> {
     let distToCenter : f32 = length(input.vPos);
     let fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
@@ -207,6 +207,12 @@ export class WebGPURenderer extends Renderer {
     } else if (this.context.getPreferredFormat) {
       this.contextFormat = this.context.getPreferredFormat(this.adapter);
     }
+
+    this.context.configure({
+      device: this.device,
+      format: this.contextFormat,
+      alphaMode: 'opaque',
+    });
 
     this.colorAttachment = {
       // view is acquired and set in onResize.
@@ -410,13 +416,6 @@ export class WebGPURenderer extends Renderer {
 
   onResize(width, height) {
     if (!this.device) return;
-
-    this.context.configure({
-      device: this.device,
-      format: this.contextFormat,
-      size: {width, height},
-      compositingAlphaMode: 'opaque',
-    });
 
     const msaaColorTexture = this.device.createTexture({
       size: { width, height },

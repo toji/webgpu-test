@@ -77,7 +77,7 @@ struct VertexOutput {
   ${PBR_VARYINGS(defines)}
 };
 
-@stage(vertex)
+@vertex
 fn main(input : VertexInput) -> VertexOutput {
   var output : VertexOutput;
   output.vNorm = normalize((primitive.modelMatrix * vec4<f32>(input.NORMAL, 0.0)).xyz);
@@ -102,7 +102,7 @@ ${defines.USE_VERTEX_COLOR ? `
 // Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
 // Thanks!
 const PBR_FUNCTIONS = `
-let PI : f32 = 3.14159265359;
+const PI : f32 = ${Math.PI};
 
 fn FresnelSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
   return F0 + (vec3<f32>(1.0, 1.0, 1.0) - F0) * pow(1.0 - cosTheta, 5.0);
@@ -173,10 +173,10 @@ struct VertexOutput {
   ${PBR_VARYINGS(defines)}
 };
 
-let dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
-let black : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+const dielectricSpec : vec3<f32> = vec3<f32>(0.04);
+const black : vec3<f32> = vec3<f32>(0.0);
 
-@stage(fragment)
+@fragment
 fn main(input : VertexOutput) -> @location(0) vec4<f32> {
   var baseColor : vec4<f32> = material.baseColorFactor;
 ${defines.USE_BASE_COLOR_MAP ? `
