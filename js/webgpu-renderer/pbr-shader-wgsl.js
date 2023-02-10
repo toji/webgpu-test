@@ -34,55 +34,55 @@ export const UNIFORM_BLOCKS = {
 };
 
 function PBR_VARYINGS(defines) { return `
-  @location(0) vWorldPos : vec3<f32>,
-  @location(1) vView : vec3<f32>, // Vector from vertex to camera.
-  @location(2) vTex : vec2<f32>,
-  @location(3) vCol : vec4<f32>,
-  @location(4) vNorm : vec3<f32>,
+  @location(0) vWorldPos : vec3f,
+  @location(1) vView : vec3f, // Vector from vertex to camera.
+  @location(2) vTex : vec2f,
+  @location(3) vCol : vec4f,
+  @location(4) vNorm : vec3f,
 
   ${defines.USE_NORMAL_MAP ? `
-  @location(5) vTangent : vec3<f32>,
-  @location(6) vBitangent : vec3<f32>,
+  @location(5) vTangent : vec3f,
+  @location(6) vBitangent : vec3f,
   ` : ``}
 `;
 }
 
 export function WEBGPU_VERTEX_SOURCE(defines) { return `
 struct VertexInput {
-  @location(${ATTRIB_MAP.POSITION}) POSITION : vec3<f32>,
-  @location(${ATTRIB_MAP.NORMAL}) NORMAL : vec3<f32>,
+  @location(${ATTRIB_MAP.POSITION}) POSITION : vec3f,
+  @location(${ATTRIB_MAP.NORMAL}) NORMAL : vec3f,
   ${defines.USE_NORMAL_MAP ? `
-  @location(${ATTRIB_MAP.TANGENT}) TANGENT : vec4<f32>,
+  @location(${ATTRIB_MAP.TANGENT}) TANGENT : vec4f,
   ` : ``}
-  @location(${ATTRIB_MAP.TEXCOORD_0}) TEXCOORD_0 : vec2<f32>,
+  @location(${ATTRIB_MAP.TEXCOORD_0}) TEXCOORD_0 : vec2f,
   ${defines.USE_VERTEX_COLOR ? `
-  @location(${ATTRIB_MAP.COLOR_0}) COLOR_0 : vec4<f32>,
+  @location(${ATTRIB_MAP.COLOR_0}) COLOR_0 : vec4f,
   ` : ``}
 };
 
 struct FrameUniforms {
-  projectionMatrix : mat4x4<f32>,
-  viewMatrix : mat4x4<f32>,
-  cameraPosition : vec3<f32>,
+  projectionMatrix : mat4x4f,
+  viewMatrix : mat4x4f,
+  cameraPosition : vec3f,
 };
 @binding(0) @group(${UNIFORM_BLOCKS.FrameUniforms}) var<uniform> frame : FrameUniforms;
 
 struct PrimitiveUniforms {
-  modelMatrix : mat4x4<f32>
+  modelMatrix : mat4x4f
 };
 @binding(0) @group(${UNIFORM_BLOCKS.PrimitiveUniforms}) var<uniform> primitive : PrimitiveUniforms;
 
 struct VertexOutput {
-  @builtin(position) position : vec4<f32>,
+  @builtin(position) position : vec4f,
   ${PBR_VARYINGS(defines)}
 };
 
 @vertex
 fn main(input : VertexInput) -> VertexOutput {
   var output : VertexOutput;
-  output.vNorm = normalize((primitive.modelMatrix * vec4<f32>(input.NORMAL, 0.0)).xyz);
+  output.vNorm = normalize((primitive.modelMatrix * vec4(input.NORMAL, 0.0)).xyz);
 ${defines.USE_NORMAL_MAP ? `
-  output.vTangent = normalize((primitive.modelMatrix * vec4<f32>(input.TANGENT.xyz, 0.0)).xyz);
+  output.vTangent = normalize((primitive.modelMatrix * vec4(input.TANGENT.xyz, 0.0)).xyz);
   output.vBitangent = cross(output.vNorm, output.vTangent) * input.TANGENT.w;
 ` : ``}
 
@@ -91,7 +91,7 @@ ${defines.USE_VERTEX_COLOR ? `
 ` : `` }
 
   output.vTex = input.TEXCOORD_0;
-  var mPos : vec4<f32> = primitive.modelMatrix * vec4<f32>(input.POSITION, 1.0);
+  var mPos = primitive.modelMatrix * vec4(input.POSITION, 1.0);
   output.vWorldPos = mPos.xyz;
   output.vView = frame.cameraPosition - mPos.xyz;
   output.position = frame.projectionMatrix * frame.viewMatrix * mPos;
@@ -104,11 +104,11 @@ ${defines.USE_VERTEX_COLOR ? `
 const PBR_FUNCTIONS = `
 const PI : f32 = ${Math.PI};
 
-fn FresnelSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
-  return F0 + (vec3<f32>(1.0, 1.0, 1.0) - F0) * pow(1.0 - cosTheta, 5.0);
+fn FresnelSchlick(cosTheta : f32, F0 : vec3f) -> vec3f {
+  return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-fn DistributionGGX(N : vec3<f32>, H : vec3<f32>, roughness : f32) -> f32 {
+fn DistributionGGX(N : vec3f, H : vec3f, roughness : f32) -> f32 {
   var a : f32      = roughness*roughness;
   var a2 : f32     = a*a;
   var NdotH : f32  = max(dot(N, H), 0.0);
@@ -131,7 +131,7 @@ fn GeometrySchlickGGX(NdotV : f32, roughness : f32) -> f32 {
   return num / denom;
 }
 
-fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -> f32 {
+fn GeometrySmith(N : vec3f, V : vec3f, L : vec3f, roughness : f32) -> f32 {
   var NdotV : f32 = max(dot(N, V), 0.0);
   var NdotL : f32 = max(dot(N, L), 0.0);
   var ggx2 : f32  = GeometrySchlickGGX(NdotV, roughness);
@@ -144,9 +144,9 @@ export function WEBGPU_FRAGMENT_SOURCE(defines) { return `
 ${PBR_FUNCTIONS}
 
 struct MaterialUniforms {
-  baseColorFactor : vec4<f32>,
-  metallicRoughnessFactor : vec2<f32>,
-  emissiveFactor : vec3<f32>,
+  baseColorFactor : vec4f,
+  metallicRoughnessFactor : vec2f,
+  emissiveFactor : vec3f,
   occlusionStrength : f32,
 };
 @binding(0) @group(${UNIFORM_BLOCKS.MaterialUniforms}) var<uniform> material : MaterialUniforms;
@@ -159,8 +159,8 @@ struct MaterialUniforms {
 @group(1) @binding(6) var emissiveTexture : texture_2d<f32>;
 
 struct Light {
-  position : vec3<f32>,
-  color : vec3<f32>,
+  position : vec3f,
+  color : vec3f,
 };
 
 struct LightUniforms {
@@ -173,37 +173,37 @@ struct VertexOutput {
   ${PBR_VARYINGS(defines)}
 };
 
-const dielectricSpec : vec3<f32> = vec3<f32>(0.04);
-const black : vec3<f32> = vec3<f32>(0.0);
+const dielectricSpec = vec3(0.04);
+const black = vec3(0.0);
 
 @fragment
-fn main(input : VertexOutput) -> @location(0) vec4<f32> {
-  var baseColor : vec4<f32> = material.baseColorFactor;
+fn main(input : VertexOutput) -> @location(0) vec4f {
+  var baseColor = material.baseColorFactor;
 ${defines.USE_BASE_COLOR_MAP ? `
-  var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, input.vTex);
+  var baseColorMap = textureSample(baseColorTexture, defaultSampler, input.vTex);
   baseColor = baseColor * baseColorMap;
 ` : ``}
 ${defines.USE_VERTEX_COLOR ? `
   baseColor = baseColor * vCol;
 ` : ``}
 
-  var albedo : vec3<f32> = baseColor.rgb;
+  var albedo = baseColor.rgb;
 
   var metallic : f32 = material.metallicRoughnessFactor.x;
   var roughness : f32 = material.metallicRoughnessFactor.y;
 
 ${defines.USE_METAL_ROUGH_MAP ? `
-  var metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, input.vTex);
+  var metallicRoughness = textureSample(metallicRoughnessTexture, defaultSampler, input.vTex);
   metallic = metallic * metallicRoughness.b;
   roughness = roughness * metallicRoughness.g;
 ` : ``}
 
 ${defines.USE_NORMAL_MAP ? `
   let tbn = mat3x3<f32>(input.vTangent, input.vBitangent, input.vNorm);
-  var N : vec3<f32> = textureSample(normalTexture, defaultSampler, input.vTex).rgb;
-  N = normalize(tbn * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
+  var N = textureSample(normalTexture, defaultSampler, input.vTex).rgb;
+  N = normalize(tbn * (2.0 * N - vec3(1.0)));
 ` : `
-  var N : vec3<f32> = normalize(input.vNorm);
+  var N = normalize(input.vNorm);
 `}
 
 ${defines.USE_OCCLUSION ? `
@@ -212,7 +212,7 @@ ${defines.USE_OCCLUSION ? `
   var ao : f32 = 1.0;
 `}
 
-  var emissive : vec3<f32> = material.emissiveFactor;
+  var emissive = material.emissiveFactor;
 ${defines.USE_EMISSIVE_TEXTURE ? `
   emissive = emissive * textureSample(emissiveTexture, defaultSampler, input.vTex).rgb;
 ` : ``}
@@ -221,48 +221,48 @@ ${defines.USE_EMISSIVE_TEXTURE ? `
     discard;
   }
 
-  var V : vec3<f32> = normalize(input.vView);
+  var V = normalize(input.vView);
 
-  var F0 : vec3<f32> = mix(dielectricSpec, albedo, vec3<f32>(metallic, metallic, metallic));
+  var F0 = mix(dielectricSpec, albedo, vec3(metallic));
 
   // reflectance equation
-  var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+  var Lo = vec3(0.0);
 
   for (var i : i32 = 0; i < ${defines.LIGHT_COUNT}; i = i + 1) {
     // calculate per-light radiance
-    var L : vec3<f32> = normalize(light.lights[i].position.xyz - input.vWorldPos);
-    var H : vec3<f32> = normalize(V + L);
-    var distance : f32 = length(light.lights[i].position.xyz - input.vWorldPos);
-    var attenuation : f32 = 1.0 / (1.0 + distance * distance);
-    var radiance : vec3<f32> = light.lights[i].color.rgb * attenuation;
+    var L = normalize(light.lights[i].position.xyz - input.vWorldPos);
+    var H = normalize(V + L);
+    var distance = length(light.lights[i].position.xyz - input.vWorldPos);
+    var attenuation = 1.0 / (1.0 + distance * distance);
+    var radiance = light.lights[i].color.rgb * attenuation;
 
     // cook-torrance brdf
-    var NDF : f32 = DistributionGGX(N, H, roughness);
-    var G : f32   = GeometrySmith(N, V, L, roughness);
-    var F : vec3<f32>    = FresnelSchlick(max(dot(H, V), 0.0), F0);
+    var NDF = DistributionGGX(N, H, roughness);
+    var G = GeometrySmith(N, V, L, roughness);
+    var F = FresnelSchlick(max(dot(H, V), 0.0), F0);
 
-    var kD : vec3<f32> = vec3<f32>(1.0, 1.0, 1.0) - F;
+    var kD = vec3(1.0) - F;
     kD = kD * (1.0 - metallic);
 
-    var numerator : vec3<f32>    = NDF * G * F;
-    var denominator : f32 = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+    var numerator = NDF * G * F;
+    var denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
     denominator = max(denominator, 0.001);
-    var specular : vec3<f32>     = numerator / vec3<f32>(denominator, denominator, denominator);
+    var specular = numerator / vec3(denominator);
 
     // add to outgoing radiance Lo
-    var NdotL : f32 = max(dot(N, L), 0.0);
-    Lo = Lo + (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
+    var NdotL = max(dot(N, L), 0.0);
+    Lo = Lo + (kD * albedo / vec3(PI) + specular) * radiance * NdotL;
   }
 
-  var ambient : vec3<f32> = light.lightAmbient * albedo * ao;
-  var color : vec3<f32> = ambient + Lo;
+  var ambient = light.lightAmbient * albedo * ao;
+  var color = ambient + Lo;
 
   color = color + emissive;
 
-  color = color / (color + vec3<f32>(1.0, 1.0, 1.0));
-  color = pow(color, vec3<f32>(1.0/2.2, 1.0/2.2, 1.0/2.2));
+  color = color / (color + vec3(1.0));
+  color = pow(color, vec3(1.0/2.2));
 
-  return vec4<f32>(color, baseColor.a);
+  return vec4(color, baseColor.a);
 }
 `;
 }
