@@ -12,6 +12,7 @@
     <select id='encoder-type'>
       <option value='separate' selected>Separate compute/render command encoders</option>
       <option value='combined'>Combined compute/render command encoders</option>
+      <option value='single-submit'>Separate encoders, single submit</option>
     </select>
     <script type="module">
       const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -305,11 +306,13 @@
           onFrame(timestamp) {
             const encoder = this.device.createCommandEncoder();
 
+            const commandBuffers = [];
+
               if (timestamp - this.lastStep > this.stepDelta) {
                   const encoderType = document.getElementById('encoder-type').value;
 
                   let computeEncoder = encoder;
-                  if (encoderType == 'separate') {
+                  if (encoderType != 'combined') {
                     computeEncoder = this.device.createCommandEncoder();
                   }
 
@@ -319,8 +322,13 @@
                   computePass.end();
                   this.lastStep = timestamp;
 
-                  if (encoderType == 'separate') {
-                    this.device.queue.submit([computeEncoder.finish()]);
+                  if (encoderType != 'combined') {
+                    const computeCommandBuffer = computeEncoder.finish();
+                    if (encoderType == 'single-submit') {
+                      commandBuffers.push(computeCommandBuffer);
+                    } else if (encoderType == 'separate') {
+                      this.device.queue.submit([computeCommandBuffer]);
+                    }
                   }
               }
 
@@ -334,7 +342,9 @@
               });
               this.cellRenderer.draw(pass, this.bindGroups[this.stepId % 2], this.gridSize);
               pass.end();
-              this.device.queue.submit([encoder.finish()]);
+
+              commandBuffers.push(encoder.finish());
+              this.device.queue.submit(commandBuffers);
           }
       }
 
