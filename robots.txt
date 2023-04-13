@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://toji.github.io/webgpu-test/sitemap.xml

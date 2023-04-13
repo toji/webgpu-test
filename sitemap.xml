@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+      xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+<!-- created with Free Online Sitemap Generator www.xml-sitemaps.com -->
+
+<url>
+  <loc>https://toji.github.io/webgpu-test/</loc>
+  <lastmod>2023-04-13T02:15:19+00:00</lastmod>
+  <priority>1.00</priority>
+</url>
+<url>
+  <loc>https://toji.github.io/webgpu-test/shader-of-doom/</loc>
+  <lastmod>2023-04-13T02:15:19+00:00</lastmod>
+  <priority>0.90</priority>
+</url>
+<url>
+  <loc>https://toji.github.io/webgpu-test/resize-crash/</loc>
+  <lastmod>2023-04-13T02:15:19+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://toji.github.io/webgpu-test/d3d12-bug/</loc>
+  <lastmod>2023-04-13T02:15:19+00:00</lastmod>
+  <priority>0.70</priority>
+</url>
+<url>
+  <loc>https://toji.github.io/webgpu-test/flashing-bug/</loc>
+  <lastmod>2023-04-13T02:15:19+00:00</lastmod>
+  <priority>0.60</priority>
+</url>
+<url>
+  <loc>https://toji.github.io/webgpu-test/compute-crash/</loc>
+  <lastmod>2023-04-13T02:15:19+00:00</lastmod>
+  <priority>0.50</priority>
+</url>
+
+</urlset>

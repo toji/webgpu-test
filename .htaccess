@@ -1,0 +1,4 @@
+ErrorDocument 404 /404.html
+Options +Indexes
+IndexOptions +FancyIndexing
+IndexIgnore *.bak

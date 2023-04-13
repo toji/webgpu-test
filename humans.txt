@@ -1,0 +1,29 @@
+## https://toji.github.io/webgpu-test/ humans.txt ##
+
+# Copyright (c) 2023 Alex313031 & Brandon Jones
+# https://humanstxt.org/
+
+/* TEAM */
+	
+	Developer: Brandon Jones
+	Role: Main Site Developer and Admin
+	Twitter: @tojiro
+	GitHub: @toji
+	Email: tojiro@gmail.com
+	From: San Jose, CA
+	
+	Developer: Alexander Frick
+	Role: Contributor
+	Twitter: @alex313031
+	GitHub: @Alex313031
+	Email: alex313031@gmail.com
+	From: Oklahoma, US
+
+	Pages should link to this file in the <link rel="author"> tag
+
+/* SITE */
+
+	Last update: 2023/04/13
+	Language: English
+	Doctype: HTML5, CSS, XML, WebGL, WASM, WebGPU
+	IDE: Geany, VSCode
