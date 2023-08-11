@@ -1,0 +1,70 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+
+    <title>WebGPU Tilemap</title>
+
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        background-color: #222222;
+        font-family: sans-serif;
+      }
+
+      canvas {
+        position: absolute;
+        z-index: 0;
+        height: 100%;
+        width: 100%;
+        inset: 0;
+        margin: 0;
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id='gpuCanvas'></canvas>
+    <script type="module">
+      const resizeObserver = new ResizeObserver((entries) => {
+        // Only one element being observed.
+        const canvasSize = entries[0].devicePixelContentBoxSize[0];
+        gpuCanvas.width = canvasSize.inlineSize;
+        gpuCanvas.height = canvasSize.blockSize;
+      });
+      resizeObserver.observe(gpuCanvas);
+
+      // Initialize WebGPU
+      const adapter = await navigator.gpu.requestAdapter();
+      const device = await adapter.requestDevice();
+      const context = gpuCanvas.getContext('webgpu');
+      context.configure({
+        device,
+        format: navigator.gpu.getPreferredCanvasFormat(),
+      });
+
+      function onFrame(t) {
+        requestAnimationFrame(onFrame);
+
+        // Pulse the canvas red
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [{
+            view: context.getCurrentTexture().createView(),
+            loadOp: 'clear',
+            clearValue: [Math.sin(t / 1000), 0, 0, 1],
+            storeOp: 'store',
+          }]
+        });
+        pass.end();
+        device.queue.submit([encoder.finish()]);
+      }
+      requestAnimationFrame(onFrame);
+    </script>
+  </body>
+</html>
