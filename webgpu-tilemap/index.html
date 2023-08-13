@@ -72,6 +72,13 @@
         pass.end();
         device.queue.submit([encoder.finish()]);*/
 
+        layer0.x = Math.floor((Math.sin(t / 1000) + 1) * 256);
+        layer0.y = Math.floor((Math.cos(t / 500) + 1) * 256);
+        layer1.x = Math.floor(layer0.x / 2);
+        layer1.y = Math.floor(layer0.y / 2);
+
+        layer1.scale = layer0.scale = (Math.sin(t / 3000) + 2) * 2;
+
         tileMapRenderer.draw(context.getCurrentTexture().createView(), [layer1, layer0]);
       }
       requestAnimationFrame(onFrame);

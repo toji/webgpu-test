@@ -11,6 +11,7 @@ const tilemapShader = `
   struct TilemapUniforms {
     viewOffset: vec2f,
     tileSize: f32,
+    tileScale: f32,
   }
   @group(0) @binding(0) var<uniform> tileUniforms: TilemapUniforms;
 
@@ -18,15 +19,45 @@ const tilemapShader = `
   @group(0) @binding(2) var spriteTexture: texture_2d<f32>;
   @group(0) @binding(3) var spriteSampler: sampler;
 
+  fn getTile(pixelCoord: vec2f) -> vec2u {
+    let scaledTileSize = tileUniforms.tileSize * tileUniforms.tileScale;
+    let texCoord = vec2u(pixelCoord / scaledTileSize) % textureDimensions(tileTexture);
+    return vec2u(textureLoad(tileTexture, texCoord, 0).xy * 256);
+  }
+
+  fn getSpriteCoord(tile: vec2u, pixelCoord: vec2f) -> vec2f {
+    let scaledTileSize = tileUniforms.tileSize * tileUniforms.tileScale;
+    let texelSize = vec2f(1) / vec2f(textureDimensions(spriteTexture));
+    let halfTexel = texelSize * 0.5;
+    let tileRange = tileUniforms.tileSize * texelSize;
+
+    // Get the UV within the tile
+    let spriteCoord = ((pixelCoord % scaledTileSize) / scaledTileSize) * tileRange;
+
+    // Clamp the coords to within half a texel of the edge of the sprite so that we
+    // never accidentally sample from a neighboring sprite.
+    let clampedSpriteCoord = clamp(spriteCoord, halfTexel, tileRange - halfTexel);
+
+    // Get the UV of the upper left corner of the sprite
+    let spriteOffset = vec2f(tile) * tileRange;
+
+    // Return the real UV of the sprite to sample.
+    return clampedSpriteCoord + spriteOffset;
+  }
+
   @fragment
   fn fragmentMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
     let pixelCoord = pos.xy + tileUniforms.viewOffset;
-    let texCoord = pixelCoord / tileUniforms.tileSize;
-    let tile = textureLoad(tileTexture, vec2u(texCoord), 0).xy;
-    let spriteOffset = floor(tile.xy * 256) * tileUniforms.tileSize;
-    let spriteCoord = (pixelCoord % tileUniforms.tileSize) + spriteOffset;
+
+    // Get the sprite index from the tilemap
+    let tile = getTile(pixelCoord);
+
+    // Get the UV within the sprite
+    let spriteCoord = getSpriteCoord(tile, pixelCoord);
+
+    // Sample the sprite and return the color
     let spriteColor = textureSample(spriteTexture, spriteSampler, spriteCoord);
-    if ((tile.x == 1 && tile.y == 1) || spriteColor.a < 0.01) {
+    if ((tile.x == 256 && tile.y == 256) || spriteColor.a < 0.01) {
         discard;
     }
     return spriteColor;
@@ -53,7 +84,7 @@ async function textureFromUrl(device, url) {
 class TileMapLayer {
   x = 0;
   y = 0;
-  scale = 1;
+  scale = 4;
 
   constructor(texture, bindGroup, buffer, tileSize) {
     this.texture = texture;
@@ -203,7 +234,7 @@ export class TileMapRenderer {
       colorAttachments: [{
         view: outputTextureView,
         loadOp: 'clear',
-        clearValue: [0, 0, 0, 0],
+        clearValue: [0, 0, 1, 0],
         storeOp: 'store',
       }]
     });
