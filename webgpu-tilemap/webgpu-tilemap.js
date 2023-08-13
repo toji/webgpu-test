@@ -2,35 +2,222 @@ const tilemapShader = `
   const pos = array<vec2f, 3>(
     vec2f(-1, -1), vec2f(-1, 3), vec2f(3, -1));
 
-  struct VertexOut {
-    @builtin(position) pos: vec4f,
-    @location(0) texcoord: vec2f,
-  };
-
   @vertex
-  fn vertexMain(@builtin(vertex_index) i: u32) -> VertexOut {
+  fn vertexMain(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
     let p = pos[i];
-    return VertexOut(
-      vec4f(p, 0, 1),
-      (vec2f(p.x, -p.y) * 0.5 + 0.5),
-    );
+    return vec4f(p, 0, 1);
   }
 
-  @group(0) @binding(0) var tileTexture: texture_2d<f32>;
-  @group(0) @binding(1) var spriteTexture: texture_2d<f32>;
-  @group(0) @binding(2) var spriteSampler: sampler;
+  struct TilemapUniforms {
+    viewOffset: vec2f,
+    tileSize: f32,
+  }
+  @group(0) @binding(0) var<uniform> tileUniforms: TilemapUniforms;
+
+  @group(0) @binding(1) var tileTexture: texture_2d<f32>;
+  @group(0) @binding(2) var spriteTexture: texture_2d<f32>;
+  @group(0) @binding(3) var spriteSampler: sampler;
 
   @fragment
-  fn fragmentMain(input: VertexOut) -> @location(0) vec4f {
-    let tile = textureLoad(tileTexture, input.texcoord, 0).xy;
-    let 
-    return 
+  fn fragmentMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+    let pixelCoord = pos.xy + tileUniforms.viewOffset;
+    let texCoord = pixelCoord / tileUniforms.tileSize;
+    let tile = textureLoad(tileTexture, vec2u(texCoord), 0).xy;
+    let spriteOffset = floor(tile.xy * 256) * tileUniforms.tileSize;
+    let spriteCoord = (pixelCoord % tileUniforms.tileSize) + spriteOffset;
+    let spriteColor = textureSample(spriteTexture, spriteSampler, spriteCoord);
+    if ((tile.x == 1 && tile.y == 1) || spriteColor.a < 0.01) {
+        discard;
+    }
+    return spriteColor;
   }
 `;
 
-export class TileMap {
-  constructor(device) {
+async function textureFromUrl(device, url) {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  const source = await createImageBitmap(blob);
+
+  const textureDescriptor = {
+      size: { width: source.width, height: source.height },
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
+  };
+  const texture = device.createTexture(textureDescriptor);
+
+  device.queue.copyExternalImageToTexture({ source }, { texture }, textureDescriptor.size);
+
+  return texture;
+}
+
+class TileMapLayer {
+  x = 0;
+  y = 0;
+  scale = 1;
+
+  constructor(texture, bindGroup, buffer, tileSize) {
+    this.texture = texture;
+    this.bindGroup = bindGroup;
+    this.buffer = buffer;
+    this.array = new Float32Array(buffer.size / Float32Array.BYTES_PER_ELEMENT);
+    this.tileSize = tileSize;
+  }
+
+  get uniformData() {
+    this.array[0] = this.x;
+    this.array[1] = this.y;
+    this.array[2] = this.tileSize;
+    this.array[3] = this.scale;
+    return this.array;
+  }
+}
+
+class Tileset {
+  #texture;
+  #tileSize;
+
+  constructor(texture, tileSize) {
+    this.#texture = texture;
+    this.#tileSize = tileSize;
+  }
+
+  get texture() { return this.#texture; }
+  get tileSize() { return this.#tileSize; }
+}
+
+export class TileMapRenderer {
+  #pipeline = null;
+  #bindGroupLayout = null;
+  #sampler = null;
+
+  constructor(device, colorFormat) {
     this.device = device;
+    this.colorFormat = colorFormat;
+
+    const module = this.device.createShaderModule({ code: tilemapShader });
+
+    this.#sampler = this.device.createSampler({
+      label: 'TileMap',
+      minFilter: 'linear',
+      magFilter: 'nearest',
+      mipmapFilter: 'linear',
+      addressModeU: 'repeat',
+      addressModeV: 'repeat',
+    });
+
+    this.#bindGroupLayout = this.device.createBindGroupLayout({
+      label: `TileMap`,
+      entries: [{
+        binding: 0,
+        buffer: {}, // Tile map uniforms
+        visibility: GPUShaderStage.FRAGMENT
+      }, {
+        binding: 1,
+        texture: {}, // Map texture
+        visibility: GPUShaderStage.FRAGMENT
+      }, {
+        binding: 2,
+        texture: {}, // Sprite texture
+        visibility: GPUShaderStage.FRAGMENT
+      }, {
+        binding: 3,
+        sampler: {}, // Sprite sampler
+        visibility: GPUShaderStage.FRAGMENT
+      }]
+    });
+
+    this.device.createRenderPipelineAsync({
+      label: 'TileMap',
+      layout: this.device.createPipelineLayout({ bindGroupLayouts: [ this.#bindGroupLayout ] }),
+      vertex: {
+        module,
+        entryPoint: 'vertexMain'
+      },
+      fragment: {
+        module,
+        entryPoint: 'fragmentMain',
+        targets: [{
+          format: colorFormat,
+          blend: {
+            color: {
+              srcFactor: 'src-alpha',
+              dstFactor: 'one-minus-src-alpha'
+            },
+            alpha: {
+              srcFactor: 'one',
+              dstFactor: 'one'
+            }
+          },
+        }],
+      }
+    }).then((pipeline) => {
+      this.#pipeline = pipeline;
+    });
+  }
+
+  async createTileset(url, tileSize = 16) {
+    const texture = await textureFromUrl(this.device, url);
+    return new Tileset(texture, tileSize);
+  }
+
+  async createTileMapLayer(url, tileset) {
+    const texture = await textureFromUrl(this.device, url);
+
+    const buffer = this.device.createBuffer({
+      label: 'TileMap Layer',
+      size: Float32Array.BYTES_PER_ELEMENT * 8,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM
+    });
+
+    const bindGroup = this.device.createBindGroup({
+      label: 'TileMap Layer',
+      layout: this.#bindGroupLayout,
+      entries: [{
+        binding: 0,
+        resource: { buffer },
+      }, {
+        binding: 1,
+        resource: texture.createView(),
+      }, {
+        binding: 2,
+        resource: tileset.texture.createView(),
+      }, {
+        binding: 3,
+        resource: this.#sampler,
+      }]
+    });
+
+    return new TileMapLayer(texture, bindGroup, buffer, tileset.tileSize);
+  }
+
+  draw(outputTextureView, layers) {
+    if (!this.#pipeline) { return; }
+
+    // Update the uniform data for every layer
+    for (const layer of layers) {
+      this.device.queue.writeBuffer(layer.buffer, 0, layer.uniformData);
+    }
+
+    const encoder = this.device.createCommandEncoder();
+    const renderPass = encoder.beginRenderPass({
+      colorAttachments: [{
+        view: outputTextureView,
+        loadOp: 'clear',
+        clearValue: [0, 0, 0, 0],
+        storeOp: 'store',
+      }]
+    });
+
+    renderPass.setPipeline(this.#pipeline);
+
+    for (const layer of layers) {
+      renderPass.setBindGroup(0, layer.bindGroup);
+      renderPass.draw(3);
+    }
+
+    renderPass.end();
+
+    this.device.queue.submit([encoder.finish()]);
   }
 }
 
@@ -45,7 +232,7 @@ export class TileMap {
 
         "attribute vec2 position;",
         "attribute vec2 texture;",
-        
+
         "varying vec2 pixelCoord;",
         "varying vec2 texCoord;",
 

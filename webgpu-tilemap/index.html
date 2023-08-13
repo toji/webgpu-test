@@ -31,6 +31,8 @@
   <body>
     <canvas id='gpuCanvas'></canvas>
     <script type="module">
+      import { TileMapRenderer } from './webgpu-tilemap.js';
+
       const resizeObserver = new ResizeObserver((entries) => {
         // Only one element being observed.
         const canvasSize = entries[0].devicePixelContentBoxSize[0];
@@ -43,26 +45,34 @@
       const adapter = await navigator.gpu.requestAdapter();
       const device = await adapter.requestDevice();
       const context = gpuCanvas.getContext('webgpu');
+      const colorFormat = navigator.gpu.getPreferredCanvasFormat();
       context.configure({
         device,
-        format: navigator.gpu.getPreferredCanvasFormat(),
+        format: colorFormat,
       });
+
+      const tileMapRenderer = new TileMapRenderer(device, colorFormat);
+      const tileset = await tileMapRenderer.createTileset('./spelunky-tiles.png', 16);
+      const layer0 = await tileMapRenderer.createTileMapLayer('./spelunky0.png', tileset);
+      const layer1 = await tileMapRenderer.createTileMapLayer('./spelunky1.png', tileset);
 
       function onFrame(t) {
         requestAnimationFrame(onFrame);
 
         // Pulse the canvas red
-        const encoder = device.createCommandEncoder();
+        /*const encoder = device.createCommandEncoder();
         const pass = encoder.beginRenderPass({
           colorAttachments: [{
-            view: context.getCurrentTexture().createView(),
+            view: ,
             loadOp: 'clear',
             clearValue: [Math.sin(t / 1000), 0, 0, 1],
             storeOp: 'store',
           }]
         });
         pass.end();
-        device.queue.submit([encoder.finish()]);
+        device.queue.submit([encoder.finish()]);*/
+
+        tileMapRenderer.draw(context.getCurrentTexture().createView(), [layer1, layer0]);
       }
       requestAnimationFrame(onFrame);
     </script>
