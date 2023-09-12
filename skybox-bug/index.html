@@ -1,0 +1,133 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+
+    <title>WebGPU Skybox bug</title>
+
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        height: 100%;
+        background-color: #222222;
+      }
+
+      canvas {
+        position: absolute;
+        z-index: 0;
+        height: 100%;
+        width: 100%;
+        inset: 0;
+        margin: 0;
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas></canvas>
+    <script type='module'>
+      import { mat4 } from 'https://cdn.jsdelivr.net/gh/toji/gl-matrix@v3.4.1/src/index.js'
+      import { SkyboxRenderer } from './skybox.js';
+
+      const COLOR_FORMAT = navigator.gpu.getPreferredCanvasFormat();
+      const DEPTH_FORMAT = 'depth16unorm';
+
+      const uniformArray = new Float32Array(32);
+      const projection = new Float32Array(uniformArray.buffer, 0, 16);
+      const view = new Float32Array(uniformArray.buffer, 64, 16);
+
+      const adapter = await navigator.gpu.requestAdapter();
+      const device = await adapter.requestDevice();
+      const canvas = document.querySelector('canvas');
+      const context = canvas.getContext('webgpu');
+      context.configure({
+        device,
+        format: COLOR_FORMAT,
+      });
+
+      const uniformBuffer = device.createBuffer({
+        size: uniformArray.byteLength,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+
+      const frameBindGroupLayout = device.createBindGroupLayout({
+        label: 'frame bind group layout',
+        entries: [{
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: {} // Camera uniforms
+        }]
+      });
+
+      const frameBindGroup = device.createBindGroup({
+        label: 'frame bind group',
+        layout: frameBindGroupLayout,
+        entries: [{
+          binding: 0,
+          resource: { buffer: uniformBuffer }
+        }]
+      });
+
+      const skyboxRenderer = new SkyboxRenderer(device, frameBindGroupLayout, COLOR_FORMAT, DEPTH_FORMAT);
+
+      let depthTexture;
+      function onResize() {
+        const dpr = Math.min(devicePixelRatio, 2);
+        canvas.width = canvas.offsetWidth * dpr;
+        canvas.height = canvas.offsetHeight * dpr;
+
+        depthTexture = device.createTexture({
+          label: 'depth deferred texture',
+          size: { width: canvas.width, height: canvas.height },
+          usage: GPUTextureUsage.RENDER_ATTACHMENT,
+          format: DEPTH_FORMAT,
+        });
+
+        mat4.perspectiveZO(projection, Math.PI * 0.5, canvas.width/canvas.height, 0.1, 20);
+      }
+      onResize();
+      window.addEventListener('resize', onResize);
+
+      function onFrame(timestamp) {
+        requestAnimationFrame(onFrame);
+
+        // Update the uniforms
+        mat4.identity(view);
+        mat4.rotateX(view, view, Math.sin(timestamp * 0.001) * 0.5);
+        mat4.rotateY(view, view, timestamp * 0.001);
+        device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+
+        const encoder = device.createCommandEncoder();
+
+        const renderPass = encoder.beginRenderPass({
+          colorAttachments: [{
+            view: context.getCurrentTexture().createView(),
+            loadOp: 'clear',
+            storeOp: 'store',
+          }],
+          depthStencilAttachment: {
+            view: depthTexture.createView(),
+            depthLoadOp: 'clear',
+            depthStoreOp: 'store',
+            depthClearValue: 1,
+          }
+        });
+
+        renderPass.setBindGroup(0, frameBindGroup);
+
+        skyboxRenderer.render(renderPass);
+
+        renderPass.end();
+
+        device.queue.submit([encoder.finish()]);
+      }
+      requestAnimationFrame(onFrame);
+    </script>
+  </body>
+</html>

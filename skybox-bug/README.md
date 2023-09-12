@@ -1,0 +1,3 @@
+This repro renders a "skybox" by drawing a cube at the far plane by returning the transformed W component for both the Z and W components of the output position and doing a 'less-equal' depth compare. (This is a common trick in game dev to ensure the skybox renders behind everything else.)
+
+On most devices this renders correctly, but on Pixel 6 and Pixel 7 (ARM Mali GPUs) there's a lot of apparent Z fighting.
