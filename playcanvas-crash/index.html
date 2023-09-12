@@ -1,0 +1,31 @@
+<html>
+  <body>
+    <h1 id="pipelineId"></h1>
+    <script type="module">
+      const pipelinePaths = [
+        '01.json',
+        '02.json',
+        '03.json',
+        '04.json',
+      ];
+
+      const adapter = await navigator.gpu.requestAdapter();
+      const device = await adapter.requestDevice();
+
+      for (const path of pipelinePaths) {
+        pipelineId.innerText = path;
+        const rq = await fetch(path);
+        const pipelineJson = await rq.json();
+
+        pipelineJson.vertex.module = device.createShaderModule(pipelineJson.vertex.module);
+        pipelineJson.fragment.module = device.createShaderModule(pipelineJson.fragment.module);
+
+        console.log(`Building ${path}`);
+        const pipeline = device.createRenderPipeline(pipelineJson);
+      }
+
+      console.log(`Complete`);
+      pipelineId.innerText = 'Complete!';
+    </script>
+  </body>
+</html>
