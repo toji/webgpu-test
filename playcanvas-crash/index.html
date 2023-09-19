@@ -1,31 +1,44 @@
 <html>
   <body>
-    <h1 id="pipelineId"></h1>
+    <h1 id="message"></h1>
     <script type="module">
-      const pipelinePaths = [
-        '01.json',
-        '02.json',
-        '03.json',
-        '04.json',
-      ];
+      function log(str) {
+        console.log(str);
+        message.innerText = str;
+      }
 
+      log('Initializing WebGPU');
       const adapter = await navigator.gpu.requestAdapter();
       const device = await adapter.requestDevice();
 
-      for (const path of pipelinePaths) {
-        pipelineId.innerText = path;
-        const rq = await fetch(path);
-        const pipelineJson = await rq.json();
+      let deviceLost = false;
+      device.lost.then((e) => {
+        log(`Device Lost (${e.reason}): ${e.message}`);
+        document.body.style.backgroundColor = 'red';
+        deviceLost = true;
+      });
 
-        pipelineJson.vertex.module = device.createShaderModule(pipelineJson.vertex.module);
-        pipelineJson.fragment.module = device.createShaderModule(pipelineJson.fragment.module);
+      log('Creating Pipeline');
+      const code = `
+        fn foo(m : mat3x3f) {}
 
-        console.log(`Building ${path}`);
-        const pipeline = device.createRenderPipeline(pipelineJson);
+        @compute @workgroup_size(1)
+        fn main() {
+          let m = mat3x3f();
+          foo(m);
+        }
+      `;
+      const pipeline = await device.createComputePipelineAsync({
+        layout: 'auto',
+        compute: {
+          module: device.createShaderModule({ code }),
+          entryPoint: 'main'
+        }
+      });
+
+      if (!deviceLost) {
+        log(`Complete`);
       }
-
-      console.log(`Complete`);
-      pipelineId.innerText = 'Complete!';
     </script>
   </body>
 </html>
