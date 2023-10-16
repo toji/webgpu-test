@@ -1,0 +1,71 @@
+<html>
+  <body>
+    <h1 id="message"></h1>
+    <script type="module">
+      function log(str) {
+        console.log(str);
+        message.innerText = str;
+      }
+
+      log('Initializing WebGPU');
+      const adapter = await navigator.gpu.requestAdapter();
+      const device = await adapter.requestDevice();
+
+      let deviceLost = false;
+      device.lost.then((e) => {
+        log(`Device Lost (${e.reason}): ${e.message}`);
+        document.body.style.backgroundColor = 'orange';
+        failed = true;
+      });
+
+      log('Creating Pipeline');
+      const code = `
+        struct FSIn {
+          @builtin(sample_mask) sampleMask: u32
+        }
+
+        struct FSOut {
+          @location(0) color: vec4f,
+          @builtin(sample_mask) sampleMask: u32
+        }
+
+        @vertex fn vs() -> @builtin(position) vec4f {
+          return vec4f(0);
+        }
+        @fragment fn fs(i: FSIn) -> FSOut {
+          var o: FSOut;
+          o.color = vec4f(0);
+          return o;
+        }
+      `;
+      const module = device.createShaderModule({ code });
+      await device.createRenderPipelineAsync({
+        layout: 'auto',
+        primitive: {
+          topology: 'triangle-list',
+        },
+        vertex: {
+          module,
+          entryPoint: 'vs',
+        },
+        fragment: {
+          module,
+          entryPoint: 'fs',
+          targets: [{
+            format: 'rgba8unorm',
+          }],
+        },
+      }).then(() => {
+        log(`Pipeline creation succeeded!`);
+      }).catch((e) => {
+        log(`Pipeline creation failed (${e.reason}): ${e.message}`);
+        document.body.style.backgroundColor = 'red';
+        failed = true;
+      });
+
+      if (!failed) {
+        log(`Complete`);
+      }
+    </script>
+  </body>
+</html>
