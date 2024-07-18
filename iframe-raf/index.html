@@ -18,26 +18,35 @@
     </style>
   </head>
   <body>
-    Top Level
-    <!--script type="module" src='./raf.js'></script-->
+    <div id='iframes'></div>
 
-    <div id='iframes'><iframe src='iframe.html'></iframe><iframe src='iframe.html'></iframe></div>
-
-    <button id='addIframe'>Add iframe</button>
-    <button id='removeIframe'>Remove iframe</button>
+    <button id='addRemoteIframe'>Add remote iframe</button>
+    <button id='addIframe'>Add same-origin iframe</button>
+    <button id='removeIframe'>Remove last iframe</button>
 
     <script>
+        const iframeContainer = document.getElementById('iframes');
+
+        function addIframe(remote) {
+          const iframe = document.createElement('iframe');
+          iframe.src = remote ? 'https://toji.dev/test/iframe.html' : 'iframe.html';
+          iframeContainer.appendChild(iframe);
+        }
+
+        addIframe(true);
+        addIframe(true);
+        addIframe(false);
+        addIframe(false);
+
         // Main page only
+        const addRemoteBtn = document.getElementById('addRemoteIframe');
         const addBtn = document.getElementById('addIframe');
         const removeBtn = document.getElementById('removeIframe');
 
         if (addBtn && removeBtn) {
-            const iframeContainer = document.getElementById('iframes');
-            addBtn.addEventListener('click', () => {
-                const iframe = document.createElement('iframe');
-                iframe.src = 'iframe.html';
-                iframeContainer.appendChild(iframe);
-            });
+            
+            addRemoteBtn.addEventListener('click', () => { addIframe(true); });
+            addBtn.addEventListener('click', () => { addIframe(false); });
 
             removeBtn.addEventListener('click', () => {
                 iframeContainer.removeChild(iframeContainer.lastChild);
