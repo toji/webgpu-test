@@ -1,0 +1,31 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+
+    <title>PBR</title>
+  </head>
+  <body>
+    <script type='module'>
+      import { RunPipelineTest } from './pipeline-test.js'
+
+      const shader = `
+        @vertex
+        fn vertexMain() -> @builtin(position) vec4f {
+          return vec4f(0);
+        }
+
+        @fragment
+        fn fragmentMain() -> @location(0) vec4f {
+          return vec4f(1);
+        }
+      `;
+
+      RunPipelineTest('render', shader);
+    </script>
+  </body>
+</html>
