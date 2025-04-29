@@ -52,31 +52,43 @@ export async function RunPipelineTest(pipelineType, shaderCode, pipelineDesc) {
     shaderDiv.innerHTML = `<h4>Shader Code:</h4><pre>${shaderCode}</pre>`;
     document.body.appendChild(shaderDiv);
 
-    if (!pipelineDesc) {
-      pipelineDesc = {
-        layout: 'auto',
-        vertex: {},
-        fragment: {
-          targets: [{format: 'rgba8unorm'}]
-        }
-      };
-    }
-    
     let pipelinePromise;
     switch (pipelineType) {
       case 'render':
+        if (!pipelineDesc) {
+          pipelineDesc = {
+            layout: 'auto',
+            vertex: {},
+            fragment: {
+              targets: [{format: 'rgba8unorm'}]
+            }
+          };
+        }
+
         pipelineDesc.vertex.module = shaderModule;
         if (pipelineDesc.fragment) { pipelineDesc.fragment.module = shaderModule; }
         pipelinePromise = device.createRenderPipelineAsync(pipelineDesc);
         break;
       
       case 'compute':
+        if (!pipelineDesc) {
+          pipelineDesc = {
+            layout: 'auto',
+            compute: {},
+          };
+        }
+
         pipelineDesc.compute.module = shaderModule;
         pipelinePromise = device.createRenderPipelineAsync(pipelineDesc);
         break;
 
       default: LogError(`Unknown pipeline type "${pipelineType}"`); return;
     }
+
+    const pipelineDiv = document.createElement('div');
+    pipelineDiv.classList.add('shader');
+    pipelineDiv.innerHTML = `<h4>Pipeline Desc:</h4><pre>${JSON.stringify(pipelineDesc, null, 2)}</pre>`;
+    document.body.appendChild(pipelineDiv);
 
     pipelinePromise.then((pipeline) => {
       LogInfo(`Pipeline creation succeeded!`);

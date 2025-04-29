@@ -1,0 +1,148 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+
+    <title>Spookyball PBR</title>
+  </head>
+  <body>
+    A reduced version of the main PBR shader from <a href='https://spookyball.com'>https://spookyball.com</a><br/>
+    <script type='module'>
+      import { RunPipelineTest } from './pipeline-test.js'
+
+      const shader = `
+  struct GlobalLights {
+    dirColor : vec3<f32>,
+    dirIntensity : f32,
+  };
+  @group(0) @binding(1) var<storage, read> globalLights : GlobalLights;
+
+  struct Shadow {
+    proj : mat4x4<f32>,
+    index : i32,
+  };
+  @group(0) @binding(2) var<storage, read> shadow : Shadow;
+  @group(0) @binding(3) var shadowTexture : texture_depth_2d;
+  @group(0) @binding(4) var shadowSampler : sampler_comparison;
+
+  @group(1) @binding(0) var defaultSampler: sampler;
+  @group(1) @binding(1) var baseColorTexture : texture_2d<f32>;
+  @group(1) @binding(2) var metallicRoughnessTexture : texture_2d<f32>;
+
+  fn pointLightShadow(worldPos : vec3<f32>) -> f32 {
+    if (shadow.index == -1) { return 1.0; }
+
+    let shadowPos = shadow.proj * vec4(worldPos, 1.0);
+    return textureSampleCompareLevel(shadowTexture, shadowSampler, shadowPos.xy, shadowPos.z);
+  }
+
+  fn GeometrySchlickGGX(NdotV : f32, roughness : f32) -> f32 {
+    let r = (roughness + 1.0);
+    let k = (r*r) / 8.0;
+
+    let num   = NdotV;
+    let denom = NdotV * (1.0 - k) + k;
+
+    return num / denom;
+  }
+
+  fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -> f32 {
+    let NdotV = max(dot(N, V), 0.0);
+    let NdotL = max(dot(N, L), 0.0);
+    let ggx2  = GeometrySchlickGGX(NdotV, roughness);
+    let ggx1  = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+  }
+
+  struct PuctualLight {
+    pointToLight : vec3<f32>,
+    range : f32,
+    color : vec3<f32>,
+  };
+
+  struct SurfaceInfo {
+    albedo : vec3<f32>,
+    roughness : f32,
+    normal : vec3<f32>,
+    v : vec3<f32>,
+  };
+
+  fn lightRadiance(light : PuctualLight, surface : SurfaceInfo) -> vec3<f32> {
+    let L = normalize(light.pointToLight);
+    let H = normalize(surface.v + L);
+
+    let NdotL = dot(surface.normal, L);
+
+    let numerator = GeometrySmith(surface.normal, surface.v, L, surface.roughness);
+    let denominator = dot(surface.normal, surface.v) * NdotL;
+    let specular = numerator / vec3(denominator);
+
+    // add to outgoing radiance Lo
+    let radiance = light.color * pow(1.0 / light.range, 4.0);
+    return (surface.albedo / vec3(3.14159) + specular) * radiance * NdotL;
+  }
+
+  struct VertexOutput {
+    @builtin(position) position : vec4<f32>,
+    @location(0) worldPos : vec3<f32>,
+    @location(1) view : vec3<f32>,
+    @location(2) texcoord : vec2<f32>,
+    @location(6) normal : vec3<f32>,
+  };
+
+  @vertex
+  fn vertexMain() -> VertexOutput {
+    return VertexOutput();
+  }
+
+  @fragment
+  fn fragmentMain(input : VertexOutput) -> @location(0) vec4<f32> {
+    var surface : SurfaceInfo;
+    surface.v = normalize(input.view);
+    surface.normal = input.normal;
+
+    let baseColorMap = textureSample(baseColorTexture, defaultSampler, input.texcoord);
+    let metallicRoughnessMap = textureSample(metallicRoughnessTexture, defaultSampler, input.texcoord);
+    surface.albedo = baseColorMap.rgb;
+    surface.roughness = metallicRoughnessMap.g;
+
+    // reflectance equation
+    var Lo = vec3f(0);
+
+    // Process the directional light if one is present
+    if (globalLights.dirIntensity > 0.0) {
+      var dirLight : PuctualLight;
+      dirLight.pointToLight = vec3f(1);
+      dirLight.color = globalLights.dirColor;
+      Lo += lightRadiance(dirLight, surface);
+    }
+
+    // Process point light
+    var light : PuctualLight;
+    light.pointToLight = -input.worldPos;
+    light.range = 1.0;
+    let lightVis = pointLightShadow(input.worldPos);
+    Lo += lightRadiance(light, surface) * lightVis;
+
+    return vec4f(Lo, 1);
+  }
+`;
+
+      const pipelineDesc = {
+        layout: 'auto',
+        vertex: {},
+        fragment: {
+          targets: [{ format: "rgba8unorm" }]
+        },
+        multisample: { count: 4 }
+    };
+
+      RunPipelineTest('render', shader, pipelineDesc);
+    </script>
+  </body>
+</html>
