@@ -1,0 +1,223 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+
+    <title>WebGPU Texture Upload Benchmark</title>
+  </head>
+  <body>
+    <p>This page times uploading textures from JS memory using both writeTexture and staging buffers.</p>
+    <fieldset>
+      <legend>Benchmark Options:</legend>
+        <div>
+          <input type="checkbox" id="staging" name="staging" checked />
+          <label for="staging">Run Staging Buffer Tests</label>
+        </div>
+        <div>
+          <input type="checkbox" id="writeTexture" name="writeTexture" checked />
+          <label for="writeTexture">Run WriteTexture Tests</label>
+        </div>
+      <button id="begin">Begin Benchmark</button>
+    </fieldset>
+    <pre id="log"></pre>
+    <script type="module">
+      // Initialize WebGPU
+      const adapter = await navigator.gpu.requestAdapter();
+      const device = await adapter.requestDevice();
+
+      function clearLog() {
+        document.getElementById('log').innerText = '';
+      }
+
+      function log(string) {
+        console.log(string);
+        document.getElementById('log').innerText += string + '\n';
+      }
+
+      async function runWriteTextureTest(size, iterationsPerRun=100, runs=10) {
+        log(`=== writeTexture(${size}x${size}) ===`);
+
+        let textures = [];
+        for (let i = 0; i < 20; ++i) {
+          textures.push(device.createTexture({
+            label: `Texture ${i}, ${size}x${size}`,
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_SAMPLE,
+            size: [size, size, 1],
+          }));
+        }
+
+        const textureData = new Uint8Array(size*size*4);
+        for (let i = 0; i < textureData.size; i+=4) {
+          textureData[i+0] = 255;
+          textureData[i+1] = 0;
+          textureData[i+2] = 128;
+          textureData[i+3] = 255;
+        }
+
+        let totalDuration = 0;
+
+        for (let j = 0; j < runs+1; ++j) {
+          const start = performance.now();
+          for (let i = 0; i < iterationsPerRun; ++i) {
+            const texture = textures[i%textures.length];
+            device.queue.writeTexture({texture}, textureData, {
+              bytesPerRow: size*4,
+              rowsPerImage: size,
+            }, [size, size, 1]);
+          }
+          await device.queue.onSubmittedWorkDone();
+          const duration = performance.now()-start;
+          if (j == 0) { continue; } // Always discard the 0th run.
+          log(`Run ${j}: ${duration}ms/${iterationsPerRun} uploads`);
+          totalDuration += duration;
+        }
+
+        const avgDuration = totalDuration / runs;
+        log(`Average: ${avgDuration}ms/${iterationsPerRun} uploads
+        `);
+
+        for (const texture of textures) {
+          texture.destroy();
+        }
+      }
+
+      async function runStagingBufferTest(size, iterationsPerRun=100, runs=10) {
+        log(`=== stagingBuffer(${size}x${size}) ===`);
+
+        let textures = [];
+        let mappedBuffers = [];
+        let destroyBuffers = false;
+        let totalBuffers = 0;
+
+        function getMappedBuffer() {
+          if (mappedBuffers.length) {
+            return mappedBuffers.pop();
+          }
+          totalBuffers++;
+          return device.createBuffer({
+            usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.MAP_WRITE,
+            size: size*size*4,
+            mappedAtCreation: true,
+          });
+        }
+
+        async function recycleBuffer(buffer) {
+          if (destroyBuffers) {
+            buffer.destroy();
+            return;
+          }
+          await buffer.mapAsync(GPUMapMode.WRITE);
+          mappedBuffers.push(buffer);
+        }
+
+        for (let i = 0; i < 20; ++i) {
+          textures.push(device.createTexture({
+            label: `Texture ${i}, ${size}x${size}`,
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_SAMPLE,
+            size: [size, size, 1],
+          }));
+        }
+
+        const textureData = new Uint8Array(size*size*4);
+        for (let i = 0; i < textureData.size; i+=4) {
+          textureData[i+0] = 255;
+          textureData[i+1] = 0;
+          textureData[i+2] = 128;
+          textureData[i+3] = 255;
+        }
+
+        let totalDuration = 0;
+
+        const submitEvery = 10;
+
+        let commandEncoder = null;
+        let usedBuffers = [];
+
+        function ensureSubmit() {
+          if (commandEncoder) {
+            device.queue.submit([commandEncoder.finish()]);
+            commandEncoder = null;
+            for (const buffer of usedBuffers) {
+              recycleBuffer(buffer);
+            }
+            usedBuffers = [];
+          }
+        }
+
+        for (let j = 0; j < runs+1; ++j) {
+          const start = performance.now();
+          for (let i = 0; i < iterationsPerRun; ++i) {
+            if (!commandEncoder) {
+              commandEncoder = device.createCommandEncoder();
+            }
+            const texture = textures[i%textures.length];
+            const buffer = getMappedBuffer();
+
+            const bufferData = new Uint8Array(buffer.getMappedRange());
+            bufferData.set(textureData);
+            buffer.unmap();
+            usedBuffers.push(buffer);
+
+            commandEncoder.copyBufferToTexture({
+              buffer,
+              bytesPerRow: size*4,
+              rowsPerImage: size
+            }, { texture },
+            [size, size, 1]);
+
+            if (i % submitEvery == 0) {
+              ensureSubmit();
+            }
+          }
+          ensureSubmit();
+          await device.queue.onSubmittedWorkDone();
+          const duration = performance.now()-start;
+          if (j == 0) { continue; } // Always discard the 0th run.
+          log(`Run ${j}: ${duration}ms/${iterationsPerRun} uploads`);
+          totalDuration += duration;
+        }
+
+        const avgDuration = totalDuration / runs;
+        log(`Average: ${avgDuration}ms/${iterationsPerRun} uploads
+Total Staging Buffers Allocated: ${totalBuffers}
+        `);
+
+        for (const texture of textures) {
+          texture.destroy();
+        }
+
+        destroyBuffers = true;
+        for (const buffer of mappedBuffers) {
+          buffer.destroy();
+        }
+      }
+
+      async function beginStaging() {
+        if (!staging.checked) { return; }
+        await runStagingBufferTest(256);
+        await runStagingBufferTest(1024);
+        await runStagingBufferTest(4096, 10);
+      }
+
+      async function beginWriteTexture() {
+        if (!writeTexture.checked) { return; }
+        await runWriteTextureTest(256);
+        await runWriteTextureTest(1024);
+        await runWriteTextureTest(4096, 10);
+      }
+
+      begin.addEventListener('click', async () => {
+        clearLog();
+        await beginStaging();
+        await beginWriteTexture();
+      });
+
+    </script>
+  </body>
+</html>
