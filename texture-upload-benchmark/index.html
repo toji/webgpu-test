@@ -13,13 +13,30 @@
     <p>This page times uploading textures from JS memory using both writeTexture and staging buffers.</p>
     <fieldset>
       <legend>Benchmark Options:</legend>
+        <div>Upload methods:</div>
         <div>
           <input type="checkbox" id="staging" name="staging" checked />
-          <label for="staging">Run Staging Buffer Tests</label>
-        </div>
-        <div>
+          <label for="staging">Staging Buffer</label>
+
           <input type="checkbox" id="writeTexture" name="writeTexture" checked />
-          <label for="writeTexture">Run WriteTexture Tests</label>
+          <label for="writeTexture">WriteTexture</label>
+        </div>
+        <div>Texture sizes:</div>
+        <div>
+          <input type="checkbox" id="size256" name="size256" checked />
+          <label for="size256">256</label>
+
+          <input type="checkbox" id="size512" name="size512" />
+          <label for="size512">512</label>
+
+          <input type="checkbox" id="size1024" name="size1024" checked />
+          <label for="size1024">1024</label>
+
+          <input type="checkbox" id="size2048" name="size2048" />
+          <label for="size2048">2048</label>
+
+          <input type="checkbox" id="size4096" name="size4096" checked />
+          <label for="size4096">4096</label>
         </div>
       <button id="begin">Begin Benchmark</button>
     </fieldset>
@@ -73,12 +90,12 @@
           await device.queue.onSubmittedWorkDone();
           const duration = performance.now()-start;
           if (j == 0) { continue; } // Always discard the 0th run.
-          log(`Run ${j}: ${duration}ms/${iterationsPerRun} uploads`);
+          log(`Run ${j}: ${duration.toFixed(2)}ms/${iterationsPerRun} uploads`);
           totalDuration += duration;
         }
 
         const avgDuration = totalDuration / runs;
-        log(`Average: ${avgDuration}ms/${iterationsPerRun} uploads
+        log(`Average: ${avgDuration.toFixed(2)}ms/${iterationsPerRun} uploads
         `);
 
         for (const texture of textures) {
@@ -179,13 +196,12 @@
           await device.queue.onSubmittedWorkDone();
           const duration = performance.now()-start;
           if (j == 0) { continue; } // Always discard the 0th run.
-          log(`Run ${j}: ${duration}ms/${iterationsPerRun} uploads`);
+          log(`Run ${j}: ${duration.toFixed(2)}ms/${iterationsPerRun} uploads`);
           totalDuration += duration;
         }
 
         const avgDuration = totalDuration / runs;
-        log(`Average: ${avgDuration}ms/${iterationsPerRun} uploads
-Total Staging Buffers Allocated: ${totalBuffers}
+        log(`Average: ${avgDuration.toFixed(2)}ms/${iterationsPerRun} uploads
         `);
 
         for (const texture of textures) {
@@ -200,16 +216,20 @@ Total Staging Buffers Allocated: ${totalBuffers}
 
       async function beginStaging() {
         if (!staging.checked) { return; }
-        await runStagingBufferTest(256);
-        await runStagingBufferTest(1024);
-        await runStagingBufferTest(4096, 10);
+        if (size256.checked) { await runStagingBufferTest(256); }
+        if (size512.checked) { await runStagingBufferTest(512); }
+        if (size1024.checked) { await runStagingBufferTest(1024); }
+        if (size2048.checked) { await runStagingBufferTest(2048); }
+        if (size4096.checked) { await runStagingBufferTest(4096, 10); }
       }
 
       async function beginWriteTexture() {
         if (!writeTexture.checked) { return; }
-        await runWriteTextureTest(256);
-        await runWriteTextureTest(1024);
-        await runWriteTextureTest(4096, 10);
+        if (size256.checked) { await runWriteTextureTest(256); }
+        if (size512.checked) { await runWriteTextureTest(512); }
+        if (size1024.checked) { await runWriteTextureTest(1024); }
+        if (size2048.checked) { await runWriteTextureTest(2048); }
+        if (size4096.checked) { await runWriteTextureTest(4096, 10); }
       }
 
       begin.addEventListener('click', async () => {
