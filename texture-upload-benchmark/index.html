@@ -37,6 +37,9 @@
 
           <input type="checkbox" id="size4096" name="size4096" checked />
           <label for="size4096">4096</label>
+
+          <input type="checkbox" id="size8192" name="size8192" />
+          <label for="size8192">8192</label>
         </div>
       <button id="begin">Begin Benchmark</button>
     </fieldset>
@@ -55,7 +58,7 @@
         document.getElementById('log').innerText += string + '\n';
       }
 
-      async function runWriteTextureTest(size, iterationsPerRun=100, runs=10) {
+      function runWriteTextureTest(size, iterationsPerRun=100, runs=10) {
         log(`=== writeTexture(${size}x${size}) ===`);
 
         let textures = [];
@@ -78,7 +81,8 @@
 
         let totalDuration = 0;
 
-        for (let j = 0; j < runs+1; ++j) {
+        const DoRun = (j) => {
+          if (j == runs+1) { return; }
           const start = performance.now();
           for (let i = 0; i < iterationsPerRun; ++i) {
             const texture = textures[i%textures.length];
@@ -87,20 +91,28 @@
               rowsPerImage: size,
             }, [size, size, 1]);
           }
-          await device.queue.onSubmittedWorkDone();
-          const duration = performance.now()-start;
-          if (j == 0) { continue; } // Always discard the 0th run.
-          log(`Run ${j}: ${duration.toFixed(2)}ms/${iterationsPerRun} uploads`);
-          totalDuration += duration;
+
+          const OnWriteFinished = () => {
+            const duration = performance.now()-start;
+            log(`Run ${j}: ${duration.toFixed(2)}ms/${iterationsPerRun} uploads${j == 0 ? ' (discarded)' : ''}`);
+            if (j != 0) { // Always discard the 0th run.
+              totalDuration += duration;
+            }
+            return DoRun(j+1);
+          }
+
+          return device.queue.onSubmittedWorkDone().then(OnWriteFinished);
         }
 
-        const avgDuration = totalDuration / runs;
-        log(`Average: ${avgDuration.toFixed(2)}ms/${iterationsPerRun} uploads
-        `);
+        return DoRun(0).then(() => {
+          const avgDuration = totalDuration / runs;
+          log(`Average: ${avgDuration.toFixed(2)}ms/${iterationsPerRun} uploads
+          `);
 
-        for (const texture of textures) {
-          texture.destroy();
-        }
+          for (const texture of textures) {
+            texture.destroy();
+          }
+        });
       }
 
       async function runStagingBufferTest(size, iterationsPerRun=100, runs=10) {
@@ -195,8 +207,8 @@
           ensureSubmit();
           await device.queue.onSubmittedWorkDone();
           const duration = performance.now()-start;
+          log(`Run ${j}: ${duration.toFixed(2)}ms/${iterationsPerRun} uploads${j == 0 ? ' (discarded)' : ''}`);
           if (j == 0) { continue; } // Always discard the 0th run.
-          log(`Run ${j}: ${duration.toFixed(2)}ms/${iterationsPerRun} uploads`);
           totalDuration += duration;
         }
 
@@ -221,6 +233,7 @@
         if (size1024.checked) { await runStagingBufferTest(1024); }
         if (size2048.checked) { await runStagingBufferTest(2048); }
         if (size4096.checked) { await runStagingBufferTest(4096, 10); }
+        if (size8192.checked) { await runStagingBufferTest(8192, 10); }
       }
 
       async function beginWriteTexture() {
@@ -230,6 +243,7 @@
         if (size1024.checked) { await runWriteTextureTest(1024); }
         if (size2048.checked) { await runWriteTextureTest(2048); }
         if (size4096.checked) { await runWriteTextureTest(4096, 10); }
+        if (size8192.checked) { await runWriteTextureTest(8192, 10); }
       }
 
       begin.addEventListener('click', async () => {
