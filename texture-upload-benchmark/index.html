@@ -8,6 +8,15 @@
     <meta name='apple-mobile-web-app-capable' content='yes'>
 
     <title>WebGPU Upload Benchmark</title>
+    <style>
+      #log {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      #log pre {
+        margin-right: 1em;
+      }
+    </style>
   </head>
   <body>
     <p>This page times uploading textures/buffers from JS memory using both writeTexture/writeBuffer and staging buffers.</p>
@@ -53,19 +62,32 @@
         </div>
       <button id="begin">Begin Benchmark</button>
     </fieldset>
-    <pre id="log"></pre>
+    <div id="log">
+
+    </div>
     <script type="module">
       // Initialize WebGPU
       const adapter = await navigator.gpu.requestAdapter();
       const device = await adapter.requestDevice();
 
+      const logContainer = document.getElementById('log');
+      let logCol = null;
       function clearLog() {
-        document.getElementById('log').innerText = '';
+        logContainer.innerText = '';
+        logCol = null;
       }
 
       function log(string) {
+        if (!logCol) {
+          logCol = document.createElement('pre');
+          logContainer.appendChild(logCol);
+        }
         console.log(string);
-        document.getElementById('log').innerText += string + '\n';
+        logCol.innerText += string + '\n';
+      }
+
+      function logNewCol() {
+        logCol = null;
       }
 
       function runWriteTextureTest(size, iterationsPerRun=100, runs=10) {
@@ -402,6 +424,7 @@
 
       async function beginStagingToTexture() {
         if (!stagingToTexture.checked) { return; }
+        logNewCol();
         if (size256.checked) { await runStagingToTextureTest(256); }
         if (size512.checked) { await runStagingToTextureTest(512); }
         if (size1024.checked) { await runStagingToTextureTest(1024); }
@@ -412,6 +435,7 @@
 
       async function beginWriteTexture() {
         if (!writeTexture.checked) { return; }
+        logNewCol();
         if (size256.checked) { await runWriteTextureTest(256); }
         if (size512.checked) { await runWriteTextureTest(512); }
         if (size1024.checked) { await runWriteTextureTest(1024); }
@@ -422,6 +446,7 @@
 
       async function beginStagingToBuffer() {
         if (!stagingToBuffer.checked) { return; }
+        logNewCol();
         if (size256.checked) { await runStagingToBufferTest(256); }
         if (size512.checked) { await runStagingToBufferTest(512); }
         if (size1024.checked) { await runStagingToBufferTest(1024); }
@@ -432,6 +457,7 @@
 
       async function beginWriteBuffer() {
         if (!writeBuffer.checked) { return; }
+        logNewCol();
         if (size256.checked) { await runWriteBufferTest(256); }
         if (size512.checked) { await runWriteBufferTest(512); }
         if (size1024.checked) { await runWriteBufferTest(1024); }
