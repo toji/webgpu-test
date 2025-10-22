@@ -7,39 +7,49 @@
     <meta name='mobile-web-app-capable' content='yes'>
     <meta name='apple-mobile-web-app-capable' content='yes'>
 
-    <title>WebGPU Texture Upload Benchmark</title>
+    <title>WebGPU Upload Benchmark</title>
   </head>
   <body>
-    <p>This page times uploading textures from JS memory using both writeTexture and staging buffers.</p>
+    <p>This page times uploading textures/buffers from JS memory using both writeTexture/writeBuffer and staging buffers.</p>
     <fieldset>
       <legend>Benchmark Options:</legend>
         <div>Upload methods:</div>
         <div>
-          <input type="checkbox" id="staging" name="staging" checked />
-          <label for="staging">Staging Buffer</label>
+          <input type="checkbox" id="stagingToTexture" name="stagingToTexture" checked />
+          <label for="stagingToTexture">Staging Buffer->Texture</label>
 
           <input type="checkbox" id="writeTexture" name="writeTexture" checked />
           <label for="writeTexture">WriteTexture</label>
+
+          <br/>
+
+          <input type="checkbox" id="stagingToBuffer" name="stagingToBuffer" />
+          <label for="stagingToBuffer">Staging Buffer->Buffer</label>
+
+          <input type="checkbox" id="writeBuffer" name="writeBuffer" />
+          <label for="writeBuffer">WriteBuffer</label>
         </div>
-        <div>Texture sizes:</div>
+        <div>Data sizes:</div>
         <div>
           <input type="checkbox" id="size256" name="size256" checked />
-          <label for="size256">256</label>
+          <label for="size256">256x256 (256Kb)</label>
 
           <input type="checkbox" id="size512" name="size512" />
-          <label for="size512">512</label>
+          <label for="size512">512x512 (1Mb)</label>
 
           <input type="checkbox" id="size1024" name="size1024" checked />
-          <label for="size1024">1024</label>
+          <label for="size1024">1024x1024 (4Mb)</label>
+
+          <br/>
 
           <input type="checkbox" id="size2048" name="size2048" />
-          <label for="size2048">2048</label>
+          <label for="size2048">2048x2048 (16Mb)</label>
 
           <input type="checkbox" id="size4096" name="size4096" checked />
-          <label for="size4096">4096</label>
+          <label for="size4096">4096x4096 (64Mb)</label>
 
           <input type="checkbox" id="size8192" name="size8192" />
-          <label for="size8192">8192</label>
+          <label for="size8192">8192x8192 (256Mb)</label>
         </div>
       <button id="begin">Begin Benchmark</button>
     </fieldset>
@@ -115,8 +125,65 @@
         });
       }
 
-      async function runStagingBufferTest(size, iterationsPerRun=100, runs=10) {
-        log(`=== stagingBuffer(${size}x${size}) ===`);
+      function runWriteBufferTest(size, iterationsPerRun=100, runs=10) {
+        let byteSize = size*size*4;
+        let kbSize = byteSize / 1024;
+        let mbSize = kbSize / 1024;
+        let label = mbSize > 1 ? mbSize + 'Mb' : kbSize + 'Kb';
+        log(`=== writeBuffer(${label}) ===`);
+
+        let dstBuffers = [];
+        for (let i = 0; i < 20; ++i) {
+          dstBuffers.push(device.createBuffer({
+            label: `Texture ${i}, ${label}`,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+            size: byteSize,
+          }));
+        }
+
+        const srcData = new Uint8Array(byteSize);
+        for (let i = 0; i < srcData.size; i+=4) {
+          srcData[i+0] = 255;
+          srcData[i+1] = 0;
+          srcData[i+2] = 128;
+          srcData[i+3] = 255;
+        }
+
+        let totalDuration = 0;
+
+        const DoRun = (j) => {
+          if (j == runs+1) { return; }
+          const start = performance.now();
+          for (let i = 0; i < iterationsPerRun; ++i) {
+            const dstBuffer = dstBuffers[i%dstBuffers.length];
+            device.queue.writeBuffer(dstBuffer, 0, srcData, 0, byteSize);
+          }
+
+          const OnWriteFinished = () => {
+            const duration = performance.now()-start;
+            log(`Run ${j}: ${duration.toFixed(2)}ms/${iterationsPerRun} uploads${j == 0 ? ' (discarded)' : ''}`);
+            if (j != 0) { // Always discard the 0th run.
+              totalDuration += duration;
+            }
+            return DoRun(j+1);
+          }
+
+          return device.queue.onSubmittedWorkDone().then(OnWriteFinished);
+        }
+
+        return DoRun(0).then(() => {
+          const avgDuration = totalDuration / runs;
+          log(`Average: ${avgDuration.toFixed(2)}ms/${iterationsPerRun} uploads
+          `);
+
+          for (const dstBuffer of dstBuffers) {
+            dstBuffer.destroy();
+          }
+        });
+      }
+
+      async function runStagingToTextureTest(size, iterationsPerRun=100, runs=10) {
+        log(`=== stagingToTexture(${size}x${size}) ===`);
 
         let textures = [];
         let mappedBuffers = [];
@@ -226,14 +293,121 @@
         }
       }
 
-      async function beginStaging() {
-        if (!staging.checked) { return; }
-        if (size256.checked) { await runStagingBufferTest(256); }
-        if (size512.checked) { await runStagingBufferTest(512); }
-        if (size1024.checked) { await runStagingBufferTest(1024); }
-        if (size2048.checked) { await runStagingBufferTest(2048); }
-        if (size4096.checked) { await runStagingBufferTest(4096, 10); }
-        if (size8192.checked) { await runStagingBufferTest(8192, 10); }
+      async function runStagingToBufferTest(size, iterationsPerRun=100, runs=10) {
+        let byteSize = size*size*4;
+        let kbSize = byteSize / 1024;
+        let mbSize = kbSize / 1024;
+        let label = mbSize > 1 ? mbSize + 'Mb' : kbSize + 'Kb';
+        log(`=== stagingToBuffer(${label}) ===`);
+
+        let dstBuffers = [];
+        let mappedBuffers = [];
+        let destroyBuffers = false;
+
+        function getMappedBuffer() {
+          if (mappedBuffers.length) {
+            return mappedBuffers.pop();
+          }
+          return device.createBuffer({
+            usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.MAP_WRITE,
+            size: byteSize,
+            mappedAtCreation: true,
+          });
+        }
+
+        async function recycleBuffer(buffer) {
+          if (destroyBuffers) {
+            buffer.destroy();
+            return;
+          }
+          await buffer.mapAsync(GPUMapMode.WRITE);
+          mappedBuffers.push(buffer);
+        }
+
+        for (let i = 0; i < 20; ++i) {
+          dstBuffers.push(device.createBuffer({
+            label: `Texture ${i}, ${label}`,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+            size: byteSize,
+          }));
+        }
+
+        const srcData = new Uint8Array(byteSize);
+        for (let i = 0; i < srcData.size; i+=4) {
+          srcData[i+0] = 255;
+          srcData[i+1] = 0;
+          srcData[i+2] = 128;
+          srcData[i+3] = 255;
+        }
+
+        let totalDuration = 0;
+
+        const submitEvery = 10;
+
+        let commandEncoder = null;
+        let usedBuffers = [];
+
+        function ensureSubmit() {
+          if (commandEncoder) {
+            device.queue.submit([commandEncoder.finish()]);
+            commandEncoder = null;
+            for (const buffer of usedBuffers) {
+              recycleBuffer(buffer);
+            }
+            usedBuffers = [];
+          }
+        }
+
+        for (let j = 0; j < runs+1; ++j) {
+          const start = performance.now();
+          for (let i = 0; i < iterationsPerRun; ++i) {
+            if (!commandEncoder) {
+              commandEncoder = device.createCommandEncoder();
+            }
+            const dstBuffer = dstBuffers[i%dstBuffers.length];
+            const buffer = getMappedBuffer();
+
+            const bufferData = new Uint8Array(buffer.getMappedRange());
+            bufferData.set(srcData);
+            buffer.unmap();
+            usedBuffers.push(buffer);
+
+            commandEncoder.copyBufferToBuffer(buffer, dstBuffer, byteSize);
+
+            if (i % submitEvery == 0) {
+              ensureSubmit();
+            }
+          }
+          ensureSubmit();
+          await device.queue.onSubmittedWorkDone();
+          const duration = performance.now()-start;
+          log(`Run ${j}: ${duration.toFixed(2)}ms/${iterationsPerRun} uploads${j == 0 ? ' (discarded)' : ''}`);
+          if (j == 0) { continue; } // Always discard the 0th run.
+          totalDuration += duration;
+        }
+
+        const avgDuration = totalDuration / runs;
+        log(`Average: ${avgDuration.toFixed(2)}ms/${iterationsPerRun} uploads
+        `);
+
+        for (const dstBuffer of dstBuffers) {
+          dstBuffer.destroy();
+        }
+
+        destroyBuffers = true;
+        for (const buffer of mappedBuffers) {
+          buffer.destroy();
+        }
+      }
+
+      async function beginStagingToTexture() {
+        if (!stagingToTexture.checked) { return; }
+        if (size256.checked) { await runStagingToTextureTest(256); }
+        if (size512.checked) { await runStagingToTextureTest(512); }
+        if (size1024.checked) { await runStagingToTextureTest(1024); }
+        if (size2048.checked) { await runStagingToTextureTest(2048); }
+        if (size4096.checked) { await runStagingToTextureTest(4096, 10); }
+        if (size8192.checked) { await runStagingToTextureTest(8192, 10); }
       }
 
       async function beginWriteTexture() {
@@ -246,10 +420,32 @@
         if (size8192.checked) { await runWriteTextureTest(8192, 10); }
       }
 
+      async function beginStagingToBuffer() {
+        if (!stagingToBuffer.checked) { return; }
+        if (size256.checked) { await runStagingToBufferTest(256); }
+        if (size512.checked) { await runStagingToBufferTest(512); }
+        if (size1024.checked) { await runStagingToBufferTest(1024); }
+        if (size2048.checked) { await runStagingToBufferTest(2048); }
+        if (size4096.checked) { await runStagingToBufferTest(4096, 10); }
+        if (size8192.checked) { await runStagingToBufferTest(8192, 10); }
+      }
+
+      async function beginWriteBuffer() {
+        if (!writeBuffer.checked) { return; }
+        if (size256.checked) { await runWriteBufferTest(256); }
+        if (size512.checked) { await runWriteBufferTest(512); }
+        if (size1024.checked) { await runWriteBufferTest(1024); }
+        if (size2048.checked) { await runWriteBufferTest(2048); }
+        if (size4096.checked) { await runWriteBufferTest(4096, 10); }
+        if (size8192.checked) { await runWriteBufferTest(8192, 10); }
+      }
+
       begin.addEventListener('click', async () => {
         clearLog();
-        await beginStaging();
+        await beginStagingToTexture();
         await beginWriteTexture();
+        await beginStagingToBuffer();
+        await beginWriteBuffer();
       });
 
     </script>
