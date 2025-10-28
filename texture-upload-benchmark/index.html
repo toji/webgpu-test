@@ -114,7 +114,7 @@
           textures.push(device.createTexture({
             label: `Texture ${i}, ${size}x${size}`,
             format: 'rgba8unorm',
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_SAMPLE,
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_SAMPLE,
             size: [size, size, 1],
           }));
         }
@@ -146,10 +146,16 @@
           return device.queue.onSubmittedWorkDone().then(OnWriteFinished);
         }
 
-        return DoRun(0).then(() => {
+        return DoRun(0).then(async () => {
           const avgDuration = totalDuration / runs;
           log(`Average: ${avgDuration.toFixed(2)}ms/${iterationsPerRun} uploads
           `);
+
+          if (verify) {
+            for (const texture of textures) {
+              await VerifyTexture(texture, textureData);
+            }
+          }
 
           for (const texture of textures) {
             texture.destroy();
@@ -313,6 +319,12 @@
         log(`Average: ${avgDuration.toFixed(2)}ms/${iterationsPerRun} uploads
         `);
 
+        if (verify) {
+          for (const texture of textures) {
+            await VerifyTexture(texture, textureData);
+          }
+        }
+
         for (const texture of textures) {
           texture.destroy();
         }
@@ -430,6 +442,27 @@
         for (const buffer of mappedBuffers) {
           buffer.destroy();
         }
+      }
+
+      async function VerifyTexture(texture, expected) {
+        const readbackBuffer = device.createBuffer({
+          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+          size: expected.byteLength,
+        });
+
+        const encoder = device.createCommandEncoder();
+        encoder.copyTextureToBuffer(
+          { texture },
+          { buffer: readbackBuffer, bytesPerRow: texture.width*4 },
+          { width: texture.width, height: texture.height, depthOrArrayLayers: 1});
+        device.queue.submit([encoder.finish()]);
+
+        await readbackBuffer.mapAsync(GPUMapMode.READ);
+        const values = new Uint8Array(readbackBuffer.getMappedRange());
+
+        const isExpected = indexedDB.cmp(values, expected) === 0;
+        log(isExpected ? 'Contents Validated ✅' : 'Contents do not match! ☠️');
+        return isExpected;
       }
 
       async function VerifyBuffer(buffer, expected) {
