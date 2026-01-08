@@ -1,0 +1,62 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+
+    <title>WebGPU Upload Benchmark</title>
+    <style>
+      #log {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      #log pre {
+        margin-right: 1em;
+      }
+    </style>
+  </head>
+  <body>
+    <p>This page benchmarks reading back data from a WebGPU buffer via mapAsync and, if available, mapSync. Benchmark is performed in a worker.</p>
+    <fieldset>
+      <legend>Benchmark Options:</legend>
+        <div>Readback methods:</div>
+        <div>
+          <input type="checkbox" id="mapAsyncMain" name="mapAsyncMain" checked />
+          <label for="mapAsync">mapAsync (main thread)</label>
+
+          <input type="checkbox" id="mapAsyncWorker" name="mapAsyncWorker" checked />
+          <label for="mapAsync">mapAsync (worker)</label>
+
+          <input type="checkbox" id="mapSync" name="mapSync" checked />
+          <label for="mapSync">mapSync (worker)</label>
+
+          <br/>
+
+          <input type="number" id="byteSize" name="byteSize" value="1024" />
+          <label for="byteSize">byteSize</label>
+          <input type="number" id="iterations" name="iterations" value="100" />
+          <label for="iterations">iterations</label>
+        </div>
+      <button id="begin">Begin Benchmark</button>
+    </fieldset>
+    <div id="log">
+
+    </div>
+    <script src='./benchmark.js'></script>
+    <script type="module">
+      // Initialize WebGPU
+      begin.addEventListener('click', async () => {
+        beginBenchmark({
+          mapAsyncMain: mapAsyncMain.checked,
+          mapAsyncWorker: mapAsyncWorker.checked,
+          mapSync: mapSync.checked,
+          byteSize: parseInt(byteSize.value, 10),
+          iterations: parseInt(iterations.value, 10),
+        });
+      });
+    </script>
+  </body>
+</html>

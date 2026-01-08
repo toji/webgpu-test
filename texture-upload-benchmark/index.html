@@ -43,16 +43,22 @@
         </div>
         <div>Data sizes:</div>
         <div>
+          <input type="checkbox" id="size64" name="size64" checked />
+          <label for="size64">64x64 (16Kb)</label>
+
+          <input type="checkbox" id="size128" name="size128" />
+          <label for="size256">128x128 (64Kb)</label>
+
           <input type="checkbox" id="size256" name="size256" checked />
           <label for="size256">256x256 (256Kb)</label>
 
           <input type="checkbox" id="size512" name="size512" />
           <label for="size512">512x512 (1Mb)</label>
 
+          <br/>
+
           <input type="checkbox" id="size1024" name="size1024" checked />
           <label for="size1024">1024x1024 (4Mb)</label>
-
-          <br/>
 
           <input type="checkbox" id="size2048" name="size2048" />
           <label for="size2048">2048x2048 (16Mb)</label>
@@ -62,6 +68,14 @@
 
           <input type="checkbox" id="size8192" name="size8192" />
           <label for="size8192">8192x8192 (256Mb)</label>
+
+          <br/>
+
+          <input type="checkbox" id="sizeCustom" name="sizeCustom" />
+          <input type="number" id="textureSize" name="textureSize" value="16" />
+          <label for="textureSize">textureSize</label>
+          <input type="number" id="iterations" name="iterations" value="1000" />
+          <label for="iterations">iterations</label>
         </div>
       <button id="begin">Begin Benchmark</button>
     </fieldset>
@@ -486,45 +500,73 @@
       async function beginStagingToTexture() {
         if (!stagingToTexture.checked) { return; }
         logNewCol();
+        if (size64.checked) { await runStagingToTextureTest(64, 1000); }
+        if (size128.checked) { await runStagingToTextureTest(128, 1000); }
         if (size256.checked) { await runStagingToTextureTest(256); }
         if (size512.checked) { await runStagingToTextureTest(512); }
         if (size1024.checked) { await runStagingToTextureTest(1024); }
         if (size2048.checked) { await runStagingToTextureTest(2048); }
         if (size4096.checked) { await runStagingToTextureTest(4096, 10); }
         if (size8192.checked) { await runStagingToTextureTest(8192, 10); }
+        if (sizeCustom.checked) {
+          const size = parseInt(textureSize.value, 10);
+          const iter = parseInt(iterations.value, 10);
+          await runStagingToTextureTest(size, iter);
+        }
       }
 
       async function beginWriteTexture() {
         if (!writeTexture.checked) { return; }
         logNewCol();
+        if (size64.checked) { await runWriteTextureTest(64), 1000; }
+        if (size128.checked) { await runWriteTextureTest(128, 1000); }
         if (size256.checked) { await runWriteTextureTest(256); }
         if (size512.checked) { await runWriteTextureTest(512); }
         if (size1024.checked) { await runWriteTextureTest(1024); }
         if (size2048.checked) { await runWriteTextureTest(2048); }
         if (size4096.checked) { await runWriteTextureTest(4096, 10); }
         if (size8192.checked) { await runWriteTextureTest(8192, 10); }
+        if (sizeCustom.checked) {
+          const size = parseInt(textureSize.value, 10);
+          const iter = parseInt(iterations.value, 10);
+          await runWriteTextureTest(size, iter);
+        }
       }
 
       async function beginStagingToBuffer() {
         if (!stagingToBuffer.checked) { return; }
         logNewCol();
+        if (size64.checked) { await runStagingToBufferTest(64, 1000); }
+        if (size128.checked) { await runStagingToBufferTest(128, 1000); }
         if (size256.checked) { await runStagingToBufferTest(256); }
         if (size512.checked) { await runStagingToBufferTest(512); }
         if (size1024.checked) { await runStagingToBufferTest(1024); }
         if (size2048.checked) { await runStagingToBufferTest(2048); }
         if (size4096.checked) { await runStagingToBufferTest(4096, 10); }
         if (size8192.checked) { await runStagingToBufferTest(8192, 10); }
+        if (sizeCustom.checked) {
+          const size = parseInt(textureSize.value, 10);
+          const iter = parseInt(iterations.value, 10);
+          await runStagingToBufferTest(size, iter);
+        }
       }
 
       async function beginWriteBuffer() {
         if (!writeBuffer.checked) { return; }
         logNewCol();
+        if (size64.checked) { await runWriteBufferTest(64, 1000); }
+        if (size128.checked) { await runWriteBufferTest(128, 1000); }
         if (size256.checked) { await runWriteBufferTest(256); }
         if (size512.checked) { await runWriteBufferTest(512); }
         if (size1024.checked) { await runWriteBufferTest(1024); }
         if (size2048.checked) { await runWriteBufferTest(2048); }
         if (size4096.checked) { await runWriteBufferTest(4096, 10); }
         if (size8192.checked) { await runWriteBufferTest(8192, 10); }
+        if (sizeCustom.checked) {
+          const size = parseInt(textureSize.value, 10);
+          const iter = parseInt(iterations.value, 10);
+          await runWriteBufferTest(size, iter);
+        }
       }
 
       begin.addEventListener('click', async () => {
