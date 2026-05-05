@@ -1,0 +1,133 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+
+    <title>WebGPU MSAA array texture "leak"</title>
+
+    <style>
+      html, body, canvas {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+
+  <body>
+    <script type='module'>
+      const SAMPLE_COUNT = 4;
+      const LAYER_COUNT = 2;
+      const DEPTH_FORMAT = 'depth24plus';
+
+      class WebGPURenderer {
+        constructor() {
+          this.canvas = document.createElement('canvas');
+          this.context = this.canvas.getContext('webgpu');
+        }
+
+        async initialize() {
+          this.adapter = await navigator.gpu.requestAdapter({
+            //powerPreference: "high-performance"
+          });
+          if (!this.adapter) {
+            throw new Error('Failed to create WebGPU Adapter');
+          }
+          this.device = await this.adapter.requestDevice();
+          this.contextFormat = navigator.gpu.getPreferredCanvasFormat(this.adapter);
+
+          // Context configuration
+          this.context.configure({
+            device: this.device,
+            format: this.contextFormat,
+            compositingAlphaMode: 'opaque',
+            usage: GPUTextureUsage.COPY_DST,
+          });
+
+          this.colorAttachment = {
+            // view is acquired and set in onCanvasResize.
+            view: undefined,
+            // resolveTarget is acquired and set in onFrame.
+            resolveTarget: undefined,
+            loadOp: 'clear',
+            storeOp: 'store',
+            clearValue: {r: 0.0, g: 0.0, b: 1, a: 1.0},
+          };
+
+
+          this.renderPassDescriptor = {
+            colorAttachments: [this.colorAttachment],
+          };
+
+          this.msaaTexture = null;
+
+          window.addEventListener('resize', () => { this.onCanvasResize(); });
+        }
+
+        onCanvasResize() {
+          if (!this.device) return;
+
+          const width = this.canvas.width = (this.canvas.clientWidth) * window.devicePixelRatio;
+          const height = this.canvas.height = (this.canvas.clientHeight) * window.devicePixelRatio;
+
+          if (this.msaaTexture) {
+            this.msaaTexture.destroy();
+          }
+
+          this.msaaTexture = this.device.createTexture({
+            size: { width, height },
+            sampleCount: SAMPLE_COUNT,
+            format: this.contextFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+
+          this.colorTexture = this.device.createTexture({
+            size: { width, height, depthOrArrayLayers: 2 },
+            sampleCount: 1,
+            format: this.contextFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+          });
+
+          // Create a view that points at the second layer of the MSAA texture.
+          this.colorAttachment.view = this.msaaTexture.createView();
+          this.colorAttachment.resolveTarget = this.colorTexture.createView({
+            baseArrayLayer: 1,
+            arrayLayerCount: 1
+          });
+        }
+
+        onFrame() {
+          const commandEncoder = this.device.createCommandEncoder({});
+
+          // Just clear the render target
+          const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
+          passEncoder.end();
+
+          // Just so we can see something on the screen.
+          commandEncoder.copyTextureToTexture(
+            {texture: this.colorTexture, origin: [0, 0, 1]},
+            {texture: this.context.getCurrentTexture()},
+            [this.canvas.width, this.canvas.height, 1]
+          );
+
+          this.device.queue.submit([commandEncoder.finish()]);
+        }
+      }
+
+      const renderer = new WebGPURenderer();
+      function onFrame() {
+        window.requestAnimationFrame(onFrame);
+        renderer.onFrame();
+      }
+
+      renderer.initialize().then(() => {
+        document.body.appendChild(renderer.canvas);
+        renderer.onCanvasResize();
+        onFrame();
+      });
+    </script>
+  </body>
+</html>
